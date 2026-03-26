@@ -1338,19 +1338,15 @@
         </div>
       </div>
 
-      <div class="charts2">
+      <div class="charts2" id="ov-daily-section">
         <div class="chart-card">
-          <div class="chart-ttl">Faturamento Diário — CSU + PET
-            <div class="chart-leg">
-              <span style="color:var(--accent)">■ CSU</span>
-              <span style="color:var(--pet)">■ PET</span>
-              <span style="color:var(--text3)" id="ch-leg-prev">— ant.</span>
-            </div>
+          <div class="chart-ttl" id="ch-ov-daily-ttl">Faturamento Diário
+            <div class="chart-leg" id="ch-ov-daily-leg"></div>
           </div>
           <canvas id="ch-ov-daily" height="120"></canvas>
         </div>
         <div class="chart-card">
-          <div class="chart-ttl">CSU vs PET</div>
+          <div class="chart-ttl" id="ch-ov-split-ttl">Distribuição por Filial</div>
           <div style="height:190px"><canvas id="ch-ov-split"></canvas></div>
         </div>
       </div>
@@ -1359,30 +1355,9 @@
           <div class="chart-ttl">Projeção × Meta <span class="lbl-prev"></span></div>
           <canvas id="ch-ov-proj" height="120"></canvas>
         </div>
-        <div class="chart-card">
-          <div class="chart-ttl">Top Ramos CSU</div>
-          <canvas id="ch-ov-rcsu" height="150"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-ttl">Top Ramos PET</div>
-          <canvas id="ch-ov-rpet" height="150"></canvas>
-        </div>
+        <div id="ov-ramos-charts" style="display:contents"></div>
       </div>
-      <div class="charts3">
-        <div class="chart-card">
-          <div class="chart-ttl">Tipo de Frete — Consolidado</div>
-          <div style="height:160px"><canvas id="ch-ov-tipo"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-ttl">Tipo de Frete — <span id="ch-ov-tipo-csu-lbl">CSU</span></div>
-          <div style="height:160px"><canvas id="ch-ov-tipo-csu"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-ttl">Tipo de Frete — <span id="ch-ov-tipo-pet-lbl">PET</span></div>
-          <div style="height:160px"><canvas id="ch-ov-tipo-pet"></canvas></div>
-        </div>
-      </div>
-    </div>
+      <div id="ov-tipo-charts" style="display:contents"></div>
 
     <!-- ── INTELIGÊNCIA ANUAL ── -->
     <div class="pane" id="pane-intel">
@@ -1441,6 +1416,28 @@
             </div>
             <canvas id="ch-intel-season" height="110"></canvas>
           </div>
+        </div>
+
+        <!-- ── Análise por Tipo de Frete (CIF / FOB / Aéreo) por Filial ── -->
+        <div id="intel-frete-section" style="margin-bottom:24px">
+          <div class="sec-hdr" style="margin-top:8px">
+            <div class="sec-title">
+              <span class="dot" style="background:var(--cyan)"></span>
+              Análise por Tipo de Frete — CIF · FOB · Aéreo
+            </div>
+          </div>
+          <div id="intel-frete-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px"></div>
+        </div>
+        
+        <!-- ── Maiores Clientes Anual / Geral por Filial ── -->
+        <div id="intel-clientes-section" style="margin-bottom:24px">
+          <div class="sec-hdr" style="margin-top:8px">
+            <div class="sec-title">
+              <span class="dot" style="background:var(--warning)"></span>
+              Maiores Clientes — Acumulado Anual por Filial
+            </div>
+          </div>
+          <div id="intel-clientes-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;margin-bottom:16px"></div>
         </div>
 
         <!-- Nota metodológica -->
@@ -2427,6 +2424,9 @@
       // ── Carregar histórico (anos anteriores na raiz e/ou pasta historico/ legada)
       showLoading('Lendo histórico...', 'Calculando métricas históricas...', 98);
       await loadHistory();
+
+      renderIntelFreteAnalysis();
+      renderIntelTopClientes();
 
       hideLoading();
       toast(`✅ ${loaded} mês(es) carregados${Object.keys(STATE.history || {}).length ? ' + histórico' : ''}`, 'ok');
@@ -3445,6 +3445,187 @@
           });
       }
     }
+
+      // ══════════════════════════════════════════════════════════
+      //  ANÁLISE ANUAL — CIF / FOB / AÉREO por Filial
+      // ══════════════════════════════════════════════════════════
+      function renderIntelFreteAnalysis() {
+        const grid = $('intel-frete-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+      
+        // Paleta de cores por filial (reutiliza a mesma lógica do overview)
+        const FILIAL_COLORS = ['#f97316','#06b6d4','#10b981','#f59e0b','#a78bfa','#ef4444','#ec4899'];
+      
+        STATE.filiais.forEach((filial, fi) => {
+          const color = FILIAL_COLORS[fi % FILIAL_COLORS.length];
+          const fl = filial.toLowerCase();
+      
+          // Acumula todos os AWBs do ano atual desta filial
+          const awbs = [];
+          STATE.periods.forEach(p => {
+            const d = STATE.cache[p];
+            if (!d) return;
+            d.cur.filter(a => a.filial === filial).forEach(a => awbs.push(a));
+          });
+      
+          if (!awbs.length) return;
+      
+          // Totais por tipo de frete
+          const totCIF   = awbs.filter(a => (a.tipo_frete||'').toUpperCase() === 'CIF').reduce((s,a) => s + a.valor_frete, 0);
+          const totFOB   = awbs.filter(a => (a.tipo_frete||'').toUpperCase() === 'FOB').reduce((s,a) => s + a.valor_frete, 0);
+          const totAereo = awbs.filter(a => (a.modal||'').toLowerCase().includes('aér')).reduce((s,a) => s + a.valor_frete, 0);
+          const totRodo  = awbs.filter(a => (a.modal||'').toLowerCase().includes('rod')).reduce((s,a) => s + a.valor_frete, 0);
+          const totGeral = awbs.reduce((s,a) => s + a.valor_frete, 0);
+      
+          const pctCIF   = totGeral > 0 ? (totCIF / totGeral * 100) : 0;
+          const pctFOB   = totGeral > 0 ? (totFOB / totGeral * 100) : 0;
+          const pctAereo = totGeral > 0 ? (totAereo / totGeral * 100) : 0;
+          const pctRodo  = totGeral > 0 ? (totRodo / totGeral * 100) : 0;
+      
+          const awbsCIF   = awbs.filter(a => (a.tipo_frete||'').toUpperCase() === 'CIF').length;
+          const awbsFOB   = awbs.filter(a => (a.tipo_frete||'').toUpperCase() === 'FOB').length;
+          const awbsAereo = awbs.filter(a => (a.modal||'').toLowerCase().includes('aér')).length;
+          const awbsRodo  = awbs.filter(a => (a.modal||'').toLowerCase().includes('rod')).length;
+      
+          const card = document.createElement('div');
+          card.className = 'chart-card';
+          card.style.cssText = 'border-top:3px solid ' + color;
+          card.innerHTML = `
+            <div class="chart-ttl" style="margin-bottom:16px">
+              <span style="color:${color};font-size:13px;font-weight:800">${filial}</span>
+              <span style="font-weight:400;color:var(--text3)">Acumulado ano atual</span>
+            </div>
+            <!-- Barras de tipo de frete -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+              ${[
+                { lbl:'CIF', val:totCIF, pct:pctCIF, awbs:awbsCIF, color:'var(--cyan)' },
+                { lbl:'FOB', val:totFOB, pct:pctFOB, awbs:awbsFOB, color:'var(--accent)' },
+                { lbl:'Aéreo', val:totAereo, pct:pctAereo, awbs:awbsAereo, color:'#60a5fa' },
+                { lbl:'Rodoviário', val:totRodo, pct:pctRodo, awbs:awbsRodo, color:'#fbbf24' },
+              ].map(item => `
+                <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+                  <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">${item.lbl}</div>
+                  <div style="font-size:16px;font-weight:800;font-family:var(--mono);color:${item.color};margin-bottom:2px">${R$(item.val)}</div>
+                  <div style="font-size:11px;color:var(--text3)">${item.pct.toFixed(1)}% · ${item.awbs} AWBs</div>
+                  <div style="margin-top:6px;height:4px;background:var(--border);border-radius:4px;overflow:hidden">
+                    <div style="height:100%;width:${Math.min(item.pct,100).toFixed(1)}%;background:${item.color};border-radius:4px;transition:width .6s"></div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <!-- Canvas do donut -->
+            <div style="height:140px;position:relative">
+              <canvas id="ch-intel-frete-${fl}"></canvas>
+            </div>
+          `;
+          grid.appendChild(card);
+      
+          // Renderiza donut CIF/FOB/Aéreo/Rodo
+          requestAnimationFrame(() => {
+            const ctx = document.getElementById(`ch-intel-frete-${fl}`);
+            if (!ctx) return;
+            if (ctx._chartInst) { ctx._chartInst.destroy(); }
+            ctx._chartInst = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                labels: ['CIF','FOB','Aéreo','Rodoviário'],
+                datasets: [{
+                  data: [totCIF, totFOB, totAereo, totRodo],
+                  backgroundColor: ['rgba(6,182,212,.7)','rgba(249,115,22,.7)','rgba(96,165,250,.7)','rgba(251,191,36,.7)'],
+                  borderColor: ['#06b6d4','#f97316','#60a5fa','#fbbf24'],
+                  borderWidth: 1,
+                }]
+              },
+              options: {
+                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                plugins: {
+                  legend: { position:'right', labels: { color:'#7c93b0', font:{ size:10 }, boxWidth:10 } },
+                  tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${R$(ctx.raw)} (${ctx.dataset.data.reduce((s,v)=>s+v,0)>0?(ctx.raw/ctx.dataset.data.reduce((s,v)=>s+v,0)*100).toFixed(1):0}%)` } }
+                }
+              }
+            });
+          });
+        });
+      }
+      
+      // ══════════════════════════════════════════════════════════
+      //  ANÁLISE ANUAL — TOP CLIENTES por Filial (acumulado anual)
+      // ══════════════════════════════════════════════════════════
+      function renderIntelTopClientes() {
+        const grid = $('intel-clientes-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+      
+        const FILIAL_COLORS = ['#f97316','#06b6d4','#10b981','#f59e0b','#a78bfa','#ef4444','#ec4899'];
+      
+        STATE.filiais.forEach((filial, fi) => {
+          const color = FILIAL_COLORS[fi % FILIAL_COLORS.length];
+      
+          // Agrega todos os AWBs do ano atual desta filial
+          const clientMap = {};
+          STATE.periods.forEach(p => {
+            const d = STATE.cache[p];
+            if (!d) return;
+            d.cur.filter(a => a.filial === filial).forEach(a => {
+              const key = a.cnpj || a.remetente || '—';
+              const nome = a.remetente || key;
+              if (!clientMap[key]) clientMap[key] = { nome, cnpj: a.cnpj||'', total: 0, awbs: 0 };
+              clientMap[key].total += a.valor_frete;
+              clientMap[key].awbs++;
+            });
+          });
+      
+          const top = Object.values(clientMap).sort((a,b) => b.total - a.total).slice(0,10);
+          if (!top.length) return;
+      
+          const totalFilial = top.reduce((s,c) => s + c.total, 0);
+          const maxVal = top[0]?.total || 1;
+      
+          const card = document.createElement('div');
+          card.className = 'tbl-card';
+          card.style.cssText = 'border-top:3px solid ' + color;
+          card.innerHTML = `
+            <div class="tbl-top">
+              <div class="tbl-top-ttl" style="color:${color}">${filial} — Top 10 Clientes</div>
+              <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">Acumulado ano atual</span>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th style="width:28px">#</th>
+                  <th>Cliente</th>
+                  <th>CNPJ</th>
+                  <th onclick="this.closest('table').querySelectorAll('tr[data-sort]')" style="text-align:right">Frete R$</th>
+                  <th style="text-align:right">AWBs</th>
+                  <th style="text-align:right">% do total</th>
+                  <th style="min-width:80px"></th>
+                </tr></thead>
+                <tbody>
+                  ${top.map((c,i) => {
+                    const pct = totalFilial > 0 ? (c.total/totalFilial*100) : 0;
+                    const barW = maxVal > 0 ? (c.total/maxVal*100).toFixed(1) : 0;
+                    return `<tr>
+                      <td style="color:var(--text3);font-family:var(--mono)">${i+1}</td>
+                      <td style="font-weight:700;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${c.nome}">${c.nome}</td>
+                      <td style="font-family:var(--mono);font-size:11px;color:var(--text2)">${c.cnpj||'—'}</td>
+                      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${color}">${R$(c.total)}</td>
+                      <td style="text-align:right;font-family:var(--mono)">${c.awbs}</td>
+                      <td style="text-align:right;font-family:var(--mono);color:var(--text2)">${pct.toFixed(1)}%</td>
+                      <td>
+                        <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+                          <div style="height:100%;width:${barW}%;background:${color};border-radius:3px;transition:width .5s"></div>
+                        </div>
+                      </td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      }
 
     // ══════════════════════════════════════════════════════════
     //  AWB SEARCH
