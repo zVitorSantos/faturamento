@@ -289,7 +289,7 @@
 
     .tree {
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 13px;
       line-height: 2.1;
       white-space: pre;
       overflow-x: auto;
@@ -346,7 +346,7 @@
 
     .cfg-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 12px;
       margin-bottom: 10px
     }
@@ -1149,7 +1149,13 @@
       <button class="nav-arr" id="btn-next" onclick="navMonth(+1)" title="Próximo mês">&#8594;</button>
     </div>
 
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="
+        display:grid;
+        grid-template-columns: 2fr 1fr;
+        gap:16px;
+        max-width:1100px;
+        width:100%;
+      ">
       <span id="hdr-status" class="hdr-status" style="display:none"></span>
       <button class="open-btn" onclick="openFolder()"><span id="open-btn-lbl">Abrir pasta raiz</span></button>
     </div>
@@ -1159,7 +1165,7 @@
   <div class="tabs" id="main-tabs" style="display:none">
     <div class="tab active" onclick="showPane('overview',this)">Visão Geral</div>
     <div id="filial-tabs"></div>
-    <div class="tab" id="tab-intel" onclick="showPane('intel',this)">📊 Inteligência Anual</div>
+    <div class="tab" id="tab-intel" onclick="showPane('intel',this)">Análise Anual</div>
     <div class="tab" id="tab-neg" onclick="showPane('neg',this)">Negociação <span id="neg-badge-tab"
         style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px;font-weight:700">!</span>
     </div>
@@ -2848,8 +2854,10 @@
       if (pEl) { pEl.textContent = pct(pctVs); pEl.style.color = pctVs >= 0 ? 'var(--success)' : 'var(--danger)'; }
       set('ov-proj', R$(proj));
       const gEl = $('ov-gap');
-      if (gEl) { gEl.textContent = isFinite(gap) ? (gap >= 0 ? '✓ +' : '') + R$(Math.abs(gap)) : '—'; gEl.style.color = gap >= 0 ? 'var(--success)' : 'var(--danger)'; }
-
+      if (gEl) {
+        gEl.textContent = isFinite(gap) ? R$(Math.abs(gap)) : '—';
+        gEl.style.color = gap >= 0 ? 'var(--success)' : 'var(--danger)';
+      }
       // Dynamic per-filial KPIs
       filialStats.forEach(({ filial, cur: fCur, prev: fPrev }) => {
         const fl = filial.toLowerCase();
