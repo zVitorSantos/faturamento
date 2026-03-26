@@ -1021,9 +1021,7 @@
     }
 
     @keyframes spin {
-      to {
-        transform: rotate(360deg)
-      }
+      to { transform: rotate(360deg) }
     }
 
     /* Progress bar inside loading overlay */
@@ -1383,8 +1381,7 @@
       <div class="sec-hdr" id="neg-hdr" style="flex-wrap:wrap;gap:12px;display:none">
         <div class="sec-title"><span class="dot" style="background:var(--danger)"></span> Carteira de Negociação</div>
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-          <button class="btn btn-s" onclick="loadNegFile()" style="white-space:nowrap">Carregar planilha de
-            negociação</button>
+          <button class="btn btn-s" onclick="loadNegFile()" style="white-space:nowrap">Carregar planilha de negociação</button>
           <span style="font-size:11px;color:var(--text3)" id="neg-file-info">Nenhuma planilha carregada</span>
         </div>
       </div>
@@ -1394,67 +1391,41 @@
         <div style="max-width:520px;width:100%;text-align:center">
 
           <!-- Ícone -->
-          <div
-            style="width:72px;height:72px;border-radius:18px;background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(239,68,68,.05));border:1px solid rgba(239,68,68,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+          <div style="width:72px;height:72px;border-radius:18px;background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(239,68,68,.05));border:1px solid rgba(239,68,68,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(239,68,68,.8)" stroke-width="1.5">
-              <path
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
           </div>
 
-          <div style="font-size:17px;font-weight:800;letter-spacing:-.3px;margin-bottom:8px">Carteira de Negociação
-          </div>
+          <div style="font-size:17px;font-weight:800;letter-spacing:-.3px;margin-bottom:8px">Carteira de Negociação</div>
           <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px">
             Carregue uma planilha XLS/XLSX com os CNPJs em negociação.<br>
             O sistema cruza com os fretes carregados e alerta quando um CNPJ movimentar.
           </div>
 
           <!-- Colunas aceitas -->
-          <div
-            style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:18px 20px;text-align:left;margin-bottom:20px">
-            <div
-              style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px">
-              Colunas reconhecidas</div>
+          <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:18px 20px;text-align:left;margin-bottom:20px">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px">Colunas reconhecidas</div>
             <div style="display:flex;flex-wrap:wrap;gap:8px">
-              <span
-                style="background:rgba(6,182,212,.1);color:var(--cyan);border:1px solid rgba(6,182,212,.25);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px;font-weight:700">CNPJ
-                ✱</span>
-              <span
-                style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Razão
-                Social</span>
-              <span
-                style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Data
-                Negociação</span>
-              <span
-                style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Tabela</span>
-              <span
-                style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Vendedor</span>
-              <span
-                style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Contato</span>
-              <span
-                style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Observação</span>
+              <span style="background:rgba(6,182,212,.1);color:var(--cyan);border:1px solid rgba(6,182,212,.25);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px;font-weight:700">CNPJ ✱</span>
+              <span style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Razão Social</span>
+              <span style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Data Negociação</span>
+              <span style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Tabela</span>
+              <span style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Vendedor</span>
+              <span style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Contato</span>
+              <span style="background:var(--card2);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:11px">Observação</span>
             </div>
-            <div style="margin-top:10px;font-size:10px;color:var(--text3)">✱ Obrigatório · CNPJs aceitam qualquer
-              formatação</div>
+            <div style="margin-top:10px;font-size:10px;color:var(--text3)">✱ Obrigatório · CNPJs aceitam qualquer formatação</div>
           </div>
 
           <!-- Botões -->
           <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-            <button onclick="loadNegFile()"
-              style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:linear-gradient(135deg,var(--danger),#b91c1c);border:none;border-radius:9px;color:#fff;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(239,68,68,.3)"
-              onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11" />
-              </svg>
+            <button onclick="loadNegFile()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:linear-gradient(135deg,var(--danger),#b91c1c);border:none;border-radius:9px;color:#fff;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(239,68,68,.3)" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg>
               Carregar planilha
             </button>
-            <button onclick="downloadNegTemplate()"
-              style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:var(--card2);border:1px solid var(--border2);border-radius:9px;color:var(--text);font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;transition:all .2s"
-              onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--cyan)'"
-              onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text)'">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11" />
-              </svg>
+            <button onclick="downloadNegTemplate()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:var(--card2);border:1px solid var(--border2);border-radius:9px;color:var(--text);font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--cyan)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text)'">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg>
               Baixar planilha modelo
             </button>
           </div>
@@ -1469,13 +1440,10 @@
           <div class="tbl-top" style="flex-wrap:wrap;gap:8px">
             <div style="display:flex;align-items:center;gap:10px">
               <div class="tbl-top-ttl">CNPJs Cadastrados</div>
-              <span id="neg-alert-count-badge"
-                style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">0
-                movimentaram</span>
+              <span id="neg-alert-count-badge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">0 movimentaram</span>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <input class="inp" id="neg-search" placeholder="CNPJ, nome ou tabela..." oninput="filterNeg()"
-                style="min-width:180px">
+              <input class="inp" id="neg-search" placeholder="CNPJ, nome ou tabela..." oninput="filterNeg()" style="min-width:180px">
               <select class="inp" id="neg-filter-status" onchange="filterNeg()">
                 <option value="">Todos Status</option>
                 <option value="movimentou">Movimentou</option>
@@ -1505,21 +1473,15 @@
               <thead id="body-neg-head">
                 <tr>
                   <th data-col="cnpj" data-label="CNPJ" onclick="sortNeg('cnpj')" title="Ordenar">CNPJ ↕</th>
-                  <th data-col="nome" data-label="Razão Social" onclick="sortNeg('nome')" title="Ordenar">Razão Social ↕
-                  </th>
-                  <th data-col="movimentou" data-label="Status" onclick="sortNeg('movimentou')" title="Ordenar">Status ↓
-                  </th>
+                  <th data-col="nome" data-label="Razão Social" onclick="sortNeg('nome')" title="Ordenar">Razão Social ↕</th>
+                  <th data-col="movimentou" data-label="Status" onclick="sortNeg('movimentou')" title="Ordenar">Status ↓</th>
                   <th>Filial</th>
                   <th data-col="dtNeg" data-label="Dt. Neg." onclick="sortNeg('dtNeg')" title="Ordenar">Dt. Neg. ↕</th>
                   <th>Tabela</th>
-                  <th data-col="vendedor" data-label="Vendedor" onclick="sortNeg('vendedor')" title="Ordenar">Vendedor ↕
-                  </th>
-                  <th data-col="lastDate" data-label="Último" onclick="sortNeg('lastDate')" title="Ordenar">Último ↕
-                  </th>
-                  <th data-col="awbs.length" data-label="AWBs" onclick="sortNeg('awbs.length')" title="Ordenar">AWBs ↕
-                  </th>
-                  <th data-col="totalFrete" data-label="Frete" onclick="sortNeg('totalFrete')" title="Ordenar">Frete ↕
-                  </th>
+                  <th data-col="vendedor" data-label="Vendedor" onclick="sortNeg('vendedor')" title="Ordenar">Vendedor ↕</th>
+                  <th data-col="lastDate" data-label="Último" onclick="sortNeg('lastDate')" title="Ordenar">Último ↕</th>
+                  <th data-col="awbs.length" data-label="AWBs" onclick="sortNeg('awbs.length')" title="Ordenar">AWBs ↕</th>
+                  <th data-col="totalFrete" data-label="Frete" onclick="sortNeg('totalFrete')" title="Ordenar">Frete ↕</th>
                   <th>Contato/Obs.</th>
                 </tr>
               </thead>
@@ -1622,61 +1584,43 @@
       width:min(98vw,1280px);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.8)">
 
         <!-- Cabeçalho -->
-        <div
-          style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="flex:1;min-width:0">
-            <div style="font-weight:800;font-size:16px;letter-spacing:-.3px" id="mn-title">Clientes Novos / Retorno
-            </div>
+            <div style="font-weight:800;font-size:16px;letter-spacing:-.3px" id="mn-title">Clientes Novos / Retorno</div>
             <div style="font-size:12px;color:var(--text3);margin-top:4px" id="mn-sub"></div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <!-- Busca rápida -->
-            <input id="mn-search" class="inp" placeholder="filtrar nome ou CNPJ..." oninput="renderMN()"
-              style="min-width:180px;font-size:12px">
+            <input id="mn-search" class="inp" placeholder="filtrar nome ou CNPJ..." oninput="renderMN()" style="min-width:180px;font-size:12px">
             <!-- Filtros -->
             <div style="display:flex;gap:5px">
               <button id="mn-btn-all" class="btn btn-s" onclick="mnFilter('all')" style="font-size:11px">Todos</button>
-              <button id="mn-btn-new" class="btn btn-s" onclick="mnFilter('new')" style="font-size:11px">Nunca
-                transportou</button>
-              <button id="mn-btn-ret" class="btn btn-s" onclick="mnFilter('ret')" style="font-size:11px">Retornou
-                (+3m)</button>
+              <button id="mn-btn-new" class="btn btn-s" onclick="mnFilter('new')" style="font-size:11px">Nunca transportou</button>
+              <button id="mn-btn-ret" class="btn btn-s" onclick="mnFilter('ret')" style="font-size:11px">Retornou (+3m)</button>
             </div>
-            <button onclick="closeMN()"
-              style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1;flex-shrink:0">×</button>
+            <button onclick="closeMN()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1;flex-shrink:0">×</button>
           </div>
         </div>
 
         <!-- Lista de clientes -->
         <div style="overflow-y:auto;flex:1">
           <!-- Cabeçalho das colunas -->
-          <div
-            style="display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:8px 20px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--card2)">
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">
-              CNPJ</div>
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">
-              Remetente</div>
-            <div
-              style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;text-align:center">
-              AWBs</div>
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">
-              Frete</div>
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">
-              Filial</div>
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">
-              Tipo</div>
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">
-              Status</div>
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">
-              Visto antes</div>
+          <div style="display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:8px 20px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--card2)">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">CNPJ</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Remetente</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;text-align:center">AWBs</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Frete</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Filial</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Tipo</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Status</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Visto antes</div>
           </div>
           <div id="body-mn"></div>
-          <div id="mn-empty" class="empty" style="display:none;padding:36px">Nenhum cliente novo ou retornado neste dia.
-          </div>
+          <div id="mn-empty" class="empty" style="display:none;padding:36px">Nenhum cliente novo ou retornado neste dia.</div>
         </div>
 
         <!-- Rodapé -->
-        <div
-          style="padding:10px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="padding:10px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--text3)" id="mn-count"></span>
           <button class="btn btn-s" onclick="exportMNCSV()" style="font-size:11px">Exportar CSV</button>
         </div>
@@ -1952,6 +1896,34 @@
     }
 
     // ══════════════════════════════════════════════════════════
+    //  PROJEÇÃO — CORRIGIDA
+    //  Fórmula: (faturamento acumulado / dias úteis decorridos até hoje)
+    //           × total de dias úteis do mês
+    //
+    //  "Dias úteis decorridos" = dias úteis do mês que já passaram
+    //  (inclusive hoje se hoje for útil).
+    //  Se o mês já encerrou (todos os dias passaram), usa o total do mês.
+    // ══════════════════════════════════════════════════════════
+    function projection(totCur, wdCur) {
+      const today = new Date().toISOString().split('T')[0];
+      // Dias úteis já decorridos (até hoje, inclusive)
+      const elapsed = wdCur.filter(d => d <= today).length;
+      if (elapsed <= 0) return 0;
+      const totalDays = wdCur.length;
+      return (totCur / elapsed) * totalDays;
+    }
+
+    function proRata(totCur, totPrev, wdCur, wdPrev) {
+      const today = new Date().toISOString().split('T')[0];
+      // Quantos dias úteis já decorreram no mês atual
+      const elapsed = wdCur.filter(d => d <= today).length;
+      if (elapsed <= 0 || wdPrev.length <= 0) return 0;
+      // Expectativa pro-rata do ano anterior com base nos dias decorridos
+      const pr = (totPrev / wdPrev.length) * elapsed;
+      return pr > 0 ? ((totCur - pr) / pr * 100) : 0;
+    }
+
+    // ══════════════════════════════════════════════════════════
     //  ABRIR PASTA RAIZ
     // ══════════════════════════════════════════════════════════
     async function openFolder() {
@@ -2093,7 +2065,6 @@
       const periodKey = STATE.periods[STATE.curIdx];
       const { year: curYear, month } = decodePeriod(periodKey);
       const prevYear = curYear - 1;
-      const prevKey = `${prevYear}-${padM(month)}`;
 
       updateNavBtns();
       updatePeriodChip(curYear, month, prevYear);
@@ -2111,7 +2082,7 @@
       const _allDts = data.cur.map(a => a.data).sort();
       const _dtRange = _allDts.length ? ` · ${_allDts[0]} → ${_allDts[_allDts.length - 1]}` : ' · sem datas';
       $('hdr-status').textContent =
-        `✓ ${data.cur.length} cur + ${data.prev.length} prev registros${_dtRange}`;
+        `${data.cur.length} cur + ${data.prev.length} prev registros${_dtRange}`;
 
       $$('.lbl-cur').forEach(el => el.textContent = curYear);
       $$('.lbl-prev').forEach(el => el.textContent = prevYear);
@@ -2207,7 +2178,7 @@
     }
 
     // ══════════════════════════════════════════════════════════
-    //  PARSE XLS — VERSÃO CORRIGIDA COM DEBUG
+    //  PARSE XLS
     // ══════════════════════════════════════════════════════════
     async function parseXLS(handle, filial, source, year) {
       try {
@@ -2216,14 +2187,12 @@
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
 
-        // Detecta linha de cabeçalho (procura linha com coluna "AWB")
         let hi = 0;
         for (let i = 0; i < Math.min(8, rows.length); i++) {
           if (rows[i].some(c => /AWB/i.test(String(c)))) { hi = i; break; }
         }
         const hdr = rows[hi].map(h => String(h).trim());
 
-        // Função de busca de coluna — tenta match exato primeiro, depois parcial (case-insensitive)
         const ci = (...ns) => {
           for (const n of ns) {
             const exact = hdr.findIndex(h => h.toLowerCase() === n.toLowerCase());
@@ -2236,7 +2205,6 @@
           return -1;
         };
 
-        // Mapeamento de colunas — busca termos alternativos para cobrir variações de layout
         const I = {
           awb: ci('Nro. AWB', 'AWB', 'Nro', 'Numero', 'Nr.'),
           data: ci('Data Emissão', 'Data Emissao', 'Emiss', 'Data', 'Dt.', 'Emitid'),
@@ -2254,9 +2222,7 @@
           cnpj: ci('CNPJ', 'Cnpj', 'C.N.P.J'),
         };
 
-        // Se coluna de data não encontrada pelos nomes, tenta detectar automaticamente
         if (I.data === -1) {
-          // Auto-detecção: procura primeira coluna com valor parecido com data
           for (let col = 0; col < hdr.length; col++) {
             const sample = rows[hi + 1]?.[col];
             if (!sample && sample !== 0) continue;
@@ -2275,22 +2241,15 @@
           const awbVal = r[I.awb];
           if (!awbVal && awbVal !== 0) continue;
 
-          // Lê o valor bruto da célula de data
           let dt = I.data >= 0 ? (r[I.data] ?? '') : '';
 
-          // Caso 1: já é um objeto Date (cellDates:true funcionou)
           if (dt instanceof Date) {
-            // Usa partes locais para evitar deslocamento UTC (problema em UTC-3)
             const y = dt.getFullYear();
             const m = String(dt.getMonth() + 1).padStart(2, '0');
             const d = String(dt.getDate()).padStart(2, '0');
             dt = `${y}-${m}-${d}`;
-
-            // Caso 2: número serial do Excel (ex: 46097)
           } else if (typeof dt === 'number' && dt > 0) {
             try {
-              // Fórmula: serial Excel → Unix timestamp
-              // 25569 = dias entre 01/01/1900 (epoch Excel) e 01/01/1970 (epoch Unix)
               const jsDate = new Date(Math.round((dt - 25569) * 86400 * 1000));
               if (!isNaN(jsDate.getTime())) {
                 const y = jsDate.getUTCFullYear();
@@ -2305,26 +2264,21 @@
               skippedBadDate++;
               continue;
             }
-
-            // Caso 3: string
           } else {
-            dt = String(dt).trim().split(' ')[0].split('T')[0]; // remove hora se houver
+            dt = String(dt).trim().split(' ')[0].split('T')[0];
             if (!dt) { skippedNoDate++; continue; }
 
             if (dt.includes('/')) {
-              // Formato dd/mm/yyyy ou mm/dd/yyyy
               const p = dt.split('/').map(v => v.trim());
               if (p.length === 3) {
                 let [a, b, c] = p;
                 a = a.padStart(2, '0');
                 b = b.padStart(2, '0');
                 if (c.length === 2) c = '20' + c;
-                // Assume formato brasileiro: dd/mm/yyyy
                 dt = `${c}-${b}-${a}`;
               }
             }
 
-            // Valida a data final
             const tmp = new Date(dt + 'T12:00:00');
             if (isNaN(tmp.getTime())) {
               skippedBadDate++;
@@ -2393,16 +2347,6 @@
       return map;
     }
 
-    function proRata(totCur, totPrev, diasFat, wdPrev) {
-      const m25 = wdPrev.length > 0 ? totPrev / wdPrev.length : 0;
-      const pr = m25 * diasFat;
-      return pr > 0 ? ((totCur - pr) / pr * 100) : 0;
-    }
-
-    function projection(totCur, diasFat, wdCur) {
-      return diasFat > 0 ? (totCur / diasFat) * wdCur.length : 0;
-    }
-
     // ══════════════════════════════════════════════════════════
     //  RENDER DISPATCHER
     // ══════════════════════════════════════════════════════════
@@ -2420,7 +2364,6 @@
       else if (name.startsWith('filial_')) renderFilial(name.replace('filial_', ''));
       else if (name === 'awb') initAWB();
       else if (name === 'neg') renderNeg();
-      // legacy fallback
       else if (name === 'csu') renderFilial('CSU');
       else if (name === 'pet') renderFilial('PET');
     }
@@ -2433,7 +2376,6 @@
       const sCurAll = stats(cur, null);
       const sPrevAll = stats(prev, null);
 
-      // Compute per-filial stats dynamically
       const filialStats = STATE.filiais.map(f => ({
         filial: f,
         cur: stats(cur, f),
@@ -2441,21 +2383,20 @@
         dmCur: dmap(cur, f),
       }));
 
-      // Days with data = union of all filials
-      const diasSet = new Set();
-      filialStats.forEach(fs => Object.keys(fs.dmCur).forEach(d => diasSet.add(d)));
-      const diasFat = diasSet.size;
+      const today = new Date().toISOString().split('T')[0];
 
-      const proj = projection(sCurAll.total, diasFat, _wdC);
-      const pctVs = proRata(sCurAll.total, sPrevAll.total, diasFat, _wdP);
+      // Dias úteis decorridos até hoje (inclusive)
+      const elapsedDays = _wdC.filter(d => d <= today).length;
+
+      const proj = projection(sCurAll.total, _wdC);
+      const pctVs = proRata(sCurAll.total, sPrevAll.total, _wdC, _wdP);
       const gap = proj - sPrevAll.total;
 
-      const today = new Date().toISOString().split('T')[0];
       if ($('wd-cur-year')) $('wd-cur-year').textContent = _curY;
       if ($('wd-prev-year')) $('wd-prev-year').textContent = _prevY;
       if ($('wd-prev-year2')) $('wd-prev-year2').textContent = _prevY;
       if ($('wd-cur-total')) $('wd-cur-total').textContent = `${_wdC.length} dias`;
-      if ($('wd-done')) $('wd-done').textContent = `${diasFat} dias`;
+      if ($('wd-done')) $('wd-done').textContent = `${elapsedDays} dias`;
       if ($('wd-left')) $('wd-left').textContent = `${_wdC.filter(d => d > today).length} dias`;
       if ($('wd-prev-total')) $('wd-prev-total').textContent = `${_wdP.length} dias`;
       if ($('wd-prev-avg')) $('wd-prev-avg').textContent = R$(_wdP.length > 0 ? sPrevAll.total / _wdP.length : 0);
@@ -2472,10 +2413,9 @@
       if (gEl) { gEl.textContent = isFinite(gap) ? (gap >= 0 ? '✓ +' : '') + R$(Math.abs(gap)) : '—'; gEl.style.color = gap >= 0 ? 'var(--success)' : 'var(--danger)'; }
 
       // Dynamic per-filial KPIs
-      filialStats.forEach(({ filial, cur: fCur, prev: fPrev, dmCur: fDm }) => {
+      filialStats.forEach(({ filial, cur: fCur, prev: fPrev }) => {
         const fl = filial.toLowerCase();
-        const dF = Object.keys(fDm).length;
-        const pF = proRata(fCur.total, fPrev.total, dF, _wdP);
+        const pF = proRata(fCur.total, fPrev.total, _wdC, _wdP);
         const ovEl = $(`ov-${fl}`);
         const ovSub = $(`ov-${fl}-sub`);
         if (ovEl) set(`ov-${fl}`, R$(fCur.total));
@@ -2490,7 +2430,7 @@
       if ($('ov-cart-sub')) $('ov-cart-sub').textContent = `${_prevY}: ${R$(sPrevAll.carteira)}`;
       set('ov-extra', R$(sCurAll.extra));
       if ($('ov-extra-sub')) $('ov-extra-sub').textContent = `${_prevY}: ${R$(sPrevAll.extra)}`;
-      const med = diasFat > 0 ? sCurAll.total / diasFat : 0;
+      const med = elapsedDays > 0 ? sCurAll.total / elapsedDays : 0;
       set('ov-avg', R$(med));
       if ($('ov-avg-sub')) $('ov-avg-sub').textContent = `Média ${_prevY}: ${R$(_wdP.length > 0 ? sPrevAll.total / _wdP.length : 0)}`;
 
@@ -2544,15 +2484,20 @@
           }
         });
 
-      let run = 0, days = 0;
       const today = new Date().toISOString().split('T')[0];
       const dmAllCur = dmap(cur, null);
+      // Projeção acumulada: a cada dia decorrido, recalcula média e projeta
+      let run = 0, days = 0;
       const projLine = _wdC.map(d => {
         const t = dmAllCur[d]?.total || 0;
-        if (t > 0) { run += t; days++; }
-        if (d > today && t === 0) return null;
-        return days > 0 ? Math.round(run / days * _wdC.length) : null;
+        if (d <= today) {
+          run += t;
+          days++;
+          return days > 0 ? Math.round(run / days * _wdC.length) : null;
+        }
+        return null;
       });
+
       dch('chOvPr');
       if ($('ch-ov-proj')) CHARTS.chOvPr = mkChart('ch-ov-proj', 'line', {
         labels, datasets: [
@@ -2712,10 +2657,23 @@
       const sPrev = stats(prev, filial);
       const dmCur = dmap(cur, filial);
       const dmPrev = dmap(prev, filial);
-      const dias = Object.keys(dmCur).length;
-      const proj = projection(sCur.total, dias, _wdC);
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // ── PROJEÇÃO CORRIGIDA ──
+      // Dias úteis decorridos até hoje (inclusive) no mês atual
+      const elapsedDays = _wdC.filter(d => d <= today).length;
+      // Projeção = faturamento acumulado / dias úteis decorridos × total dias úteis do mês
+      const proj = elapsedDays > 0 ? (sCur.total / elapsedDays) * _wdC.length : 0;
+
+      // Média diária real (baseada em dias decorridos, não em dias com dados)
+      const med = elapsedDays > 0 ? sCur.total / elapsedDays : 0;
+
+      // % vs ano anterior pró-rata (usando dias decorridos como base)
+      const pVal = proRata(sCur.total, sPrev.total, _wdC, _wdP);
+
+      // % da projeção vs meta (total do ano anterior)
       const projPct = sPrev.total > 0 ? (proj / sPrev.total * 100) : 0;
-      const pVal = proRata(sCur.total, sPrev.total, dias, _wdP);
       const prog = sPrev.total > 0 ? Math.min(sCur.total / sPrev.total * 100, 100) : 0;
 
       if ($(`lbl-${pfx}`)) $(`lbl-${pfx}`).textContent = `${MONTHS[_mo]} ${_curY}`;
@@ -2726,9 +2684,8 @@
       if ($(`${pfx}-cart-sub`)) $(`${pfx}-cart-sub`).textContent = `${_prevY}: ${R$(sPrev.carteira)}`;
       set(`${pfx}-extra`, R$(sCur.extra));
       if ($(`${pfx}-extra-sub`)) $(`${pfx}-extra-sub`).textContent = `${_prevY}: ${R$(sPrev.extra)}`;
-      const med = dias > 0 ? sCur.total / dias : 0;
       set(`${pfx}-avg`, R$(med));
-      if ($(`${pfx}-avg-sub`)) $(`${pfx}-avg-sub`).textContent = `${dias} dias fat. / ${_wdC.length} úteis`;
+      if ($(`${pfx}-avg-sub`)) $(`${pfx}-avg-sub`).textContent = `${elapsedDays} dias úteis decorridos / ${_wdC.length} úteis no mês`;
       set(`${pfx}-proj`, R$(proj));
       bb(`${pfx}-proj-b`, pct(projPct - 100) + ' vs meta', bcl(projPct - 100));
       set(`${pfx}-awbs`, sCur.awbs.toLocaleString('pt-BR'));
@@ -2741,7 +2698,6 @@
       const tbody = $(`body-${pfx}`);
       if (tbody) {
         tbody.innerHTML = '';
-        const today = new Date().toISOString().split('T')[0];
         _wdC.forEach((dt, i) => {
           if (dt > today && !dmCur[dt]) return;
           const r = dmCur[dt]; const dp = _wdP[i];
@@ -2925,8 +2881,7 @@
     // ══════════════════════════════════════════════════════════
     //  ÍNDICE GLOBAL DE REMETENTES (para detecção de novos)
     // ══════════════════════════════════════════════════════════
-    // Maps remetente (normalizado) → Set of date strings (all loaded months, sorted)
-    let ALL_REM_DATES = {}; // { 'nome_normalizado': ['2026-01-05', '2026-02-10', ...] }
+    let ALL_REM_DATES = {};
 
     function normRem(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
@@ -2940,16 +2895,11 @@
           ALL_REM_DATES[k].add(a.data);
         });
       });
-      // Convert sets to sorted arrays
       Object.keys(ALL_REM_DATES).forEach(k => {
         ALL_REM_DATES[k] = [...ALL_REM_DATES[k]].sort();
       });
     }
 
-    // ── Returns category for a remetente on a given date:
-    //   'new'  = never transported before this date (across all loaded data)
-    //   'ret'  = last transport was > 90 days before this date
-    //   null   = regular (transported within 90 days before)
     function clientCategory(remNorm, dateStr) {
       const dates = ALL_REM_DATES[remNorm];
       if (!dates || dates.length === 0) return 'new';
@@ -2968,17 +2918,14 @@
     function openNovos(dateStr, filial) {
       if (!Object.keys(ALL_REM_DATES).length) rebuildAllAWBIndex();
 
-      // Collect AWBs for this specific day/filial from all loaded cache
       let dayAWBs = [];
       Object.values(STATE.cache).forEach(d => {
         dayAWBs.push(...d.cur.filter(a => a.data === dateStr && a.filial === filial));
       });
 
-      // Deduplicate by AWB key
       const seenAWB = new Set();
       dayAWBs = dayAWBs.filter(a => { if (seenAWB.has(a.awb)) return false; seenAWB.add(a.awb); return true; });
 
-      // Group by normalized remetente — aggregate multiple NFs of same client
       const clientMap = {};
       dayAWBs.forEach(a => {
         const k = normRem(a.remetente);
@@ -2997,7 +2944,6 @@
         clientMap[k].sources.add(a.source);
       });
 
-      // Compute category per unique client
       _mnAll = Object.entries(clientMap).map(([k, g]) => {
         const cat = clientCategory(k, dateStr);
         const dates = ALL_REM_DATES[k] || [];
@@ -3052,8 +2998,9 @@
         const lastFmt = a.lastDate ? new Date(a.lastDate + 'T12:00:00').toLocaleDateString('pt-BR') : null;
 
         const row = document.createElement('div');
-        row.style.cssText = `display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:9px 20px;border-bottom:1px solid var(--border);align-items:center;${i % 2 === 1 ? 'background:rgba(255,255,255,.012)' : ''
-          }`;
+        row.style.cssText = `display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:9px 20px;border-bottom:1px solid var(--border);align-items:center;${
+          i % 2 === 1 ? 'background:rgba(255,255,255,.012)' : ''
+        }`;
         row.innerHTML = `
           <div class="mono" style="font-size:11px;color:var(--cyan);user-select:all;padding-right:8px">${cnpjDisplay}</div>
           <div style="font-weight:700;font-size:13px;word-break:break-word;line-height:1.3;padding-right:12px">${a.remetente || '—'}</div>
@@ -3062,8 +3009,8 @@
           <div><span class="tag ${(a.filial || '').toLowerCase()}">${a.filial}</span></div>
           <div style="font-size:11px;color:var(--text2)">${sourcesStr}</div>
           <div>${isNew
-            ? '<span style="background:rgba(16,185,129,.18);color:var(--success);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap">&#10024; Nunca transp.</span>'
-            : '<span style="background:rgba(249,115,22,.18);color:var(--accent);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap">🔄 Retornou</span>'}
+            ? '<span style="background:rgba(16,185,129,.18);color:var(--success);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap">Nunca transp.</span>'
+            : '<span style="background:rgba(249,115,22,.18);color:var(--accent);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap">Retornou</span>'}
           </div>
           <div style="font-size:12px;color:${lastFmt ? 'var(--text2)' : 'var(--text3)'}">${lastFmt || '— (1° vez)'}</div>`;
         container.appendChild(row);
@@ -3086,33 +3033,28 @@
     // ══════════════════════════════════════════════════════════
     //  NEGOCIAÇÃO
     // ══════════════════════════════════════════════════════════
-    let NEG_LIST = []; // [{cnpj, nome, contato, obs}, ...]
-    let NEG_MATCHES = []; // computed matches
+    let NEG_LIST = [];
+    let NEG_MATCHES = [];
     let NEG_FILTERED = [];
 
     function cleanCNPJ(v) {
       return String(v || '').replace(/\D/g, '');
     }
 
-    // Parse dates that may come as Excel serial numbers, Date objects, or strings
     function parseNegDate(v) {
       if (!v && v !== 0) return '';
-      // Excel serial number (e.g. 46021)
       if (typeof v === 'number' && v > 40000 && v < 60000) {
         const d = new Date(Math.round((v - 25569) * 86400 * 1000));
         if (!isNaN(d)) return d.toLocaleDateString('pt-BR');
       }
-      // Date object
       if (v instanceof Date) {
         return v.toLocaleDateString('pt-BR');
       }
       const s = String(v).trim();
       if (!s) return '';
-      // ISO yyyy-mm-dd
       if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
         return new Date(s + 'T12:00:00').toLocaleDateString('pt-BR');
       }
-      // Already dd/mm/yyyy
       if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s;
       return s;
     }
@@ -3136,7 +3078,6 @@
           types: [{ description: 'Planilha', accept: { 'application/vnd.ms-excel': ['.xls', '.xlsx'] } }]
         });
         const buf = await (await fh.getFile()).arrayBuffer();
-        // cellDates:true so Date columns come as Date objects, not serial numbers
         const wb = XLSX.read(buf, { type: 'array', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
@@ -3166,7 +3107,6 @@
           const r = rows[i];
           let cnpj = cleanCNPJ(r[iCNPJ]);
           if (!cnpj || cnpj.length < 8) continue;
-          // Remove leading zero if present (our system stores without leading zero)
           cnpj = cnpj.replace(/^0+/, '') || cnpj;
           NEG_LIST.push({
             cnpj,
@@ -3184,7 +3124,6 @@
         toast(`✅ ${NEG_LIST.length} CNPJs de negociação carregados.`, 'ok');
         computeNegMatches();
         renderNeg();
-        // Show badge if there are matches
         updateNegBadge();
       } catch (e) {
         if (e.name !== 'AbortError') toast('Erro ao ler planilha: ' + e.message, 'err');
@@ -3192,19 +3131,10 @@
     }
 
     function computeNegMatches() {
-      // Build a map CNPJ (digits only) → awbs from all loaded data
-      // We'll use remetente as name since we don't have CNPJ in XLS
-      // Actually — we need to match by CNPJ. But current XLS parsing doesn't store CNPJ.
-      // So we store neg matches by CNPJ matching against a "cnpj" field if present.
-      // Since the AWB XLS likely doesn't have CNPJ column explicitly, we try to match
-      // via a supplementary field. For now, if the XLS has a CNPJ-like field, use it.
-      // We add CNPJ to parseXLS if available.
-
       const allAWBs = [];
       Object.values(STATE.cache).forEach(d => allAWBs.push(...d.cur, ...d.prev));
 
-      // Build CNPJ map from AWBs that have cnpj field
-      const cnpjMap = {}; // cnpj_digits → [awbs]
+      const cnpjMap = {};
       allAWBs.forEach(a => {
         if (!a.cnpj) return;
         const c = cleanCNPJ(a.cnpj);
@@ -3237,7 +3167,6 @@
       } else {
         badge.style.display = 'none';
       }
-      // Also update inline badge in the table header
       const inlineBadge = $('neg-alert-count-badge');
       if (inlineBadge) {
         if (count > 0) {
@@ -3262,12 +3191,10 @@
       filterNeg();
     }
 
-    // Sorting state for neg table
     let _negSortCol = 'movimentou', _negSortAsc = false;
 
     function sortNeg(col) {
       if (_negSortCol === col) { _negSortAsc = !_negSortAsc; } else { _negSortCol = col; _negSortAsc = true; }
-      // Update header indicators
       document.querySelectorAll('#body-neg-head th').forEach(th => {
         const c = th.dataset.col;
         th.textContent = th.dataset.label + (c === col ? (_negSortAsc ? ' ↑' : ' ↓') : ' ↕');
@@ -3288,7 +3215,6 @@
         return true;
       });
 
-      // Sort
       NEG_FILTERED.sort((a, b) => {
         let av = a[_negSortCol], bv = b[_negSortCol];
         if (_negSortCol === 'movimentou') { av = a.movimentou ? 1 : 0; bv = b.movimentou ? 1 : 0; }
@@ -3304,7 +3230,6 @@
       const negCount = $('neg-list-count');
       if (negCount) negCount.textContent = `${NEG_FILTERED.length} de ${NEG_MATCHES.length}`;
 
-      // Rebuild vendor filter options
       const vendorSel = $('neg-filter-vendedor');
       if (vendorSel) {
         const cur = vendorSel.value;
@@ -3332,8 +3257,8 @@
       <td class="mono" style="font-size:11px;color:var(--cyan);white-space:nowrap">${cnpjDigits}</td>
       <td style="font-weight:${m.nome ? '600' : '400'};white-space:normal;min-width:120px">${m.nome || '<span style="color:var(--text3)">—</span>'}</td>
       <td style="white-space:nowrap">${m.movimentou
-            ? '<span style="background:rgba(239,68,68,.13);color:var(--danger);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🔔 Mov.</span>'
-            : '<span style="color:var(--text3);font-size:11px">Aguard.</span>'}</td>
+          ? '<span style="background:rgba(239,68,68,.13);color:var(--danger);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🔔 Mov.</span>'
+          : '<span style="color:var(--text3);font-size:11px">Aguard.</span>'}</td>
       <td style="font-size:11px;color:var(--text2);white-space:nowrap">${filiais}</td>
       <td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.dtNeg || '—'}</td>
       <td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.tabela || '—'}</td>
@@ -3346,8 +3271,6 @@
       });
     }
 
-    // ── Modal embarques de um CNPJ
-    let _negAwbModal = null;
     function openNegAwbs(m) {
       const existing = $('modal-neg-awbs');
       if (existing) existing.remove();
