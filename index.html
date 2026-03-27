@@ -742,7 +742,7 @@
       <div style="background:var(--card);border:1px solid var(--border2);border-radius:18px;width:min(98vw,1280px);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.8)">
         <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="flex:1;min-width:0">
-            <div style="font-weight:800;font-size:16px;letter-spacing:-.3px" id="mn-title">Clientes Novos / Retorno</div>
+            <div style="font-weight:800;font-size:16px;letter-spacing:-.3px" id="mn-title">Pagadores Novos / Retorno</div>
             <div style="font-size:12px;color:var(--text3);margin-top:4px" id="mn-sub"></div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -758,7 +758,7 @@
         <div style="overflow-y:auto;flex:1">
           <div style="display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:8px 20px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--card2)">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">CNPJ</div>
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Remetente</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Pagador do Frete</div>
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;text-align:center">AWBs</div>
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Frete</div>
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Filial</div>
@@ -767,7 +767,7 @@
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Visto antes</div>
           </div>
           <div id="body-mn"></div>
-          <div id="mn-empty" class="empty" style="display:none;padding:36px">Nenhum cliente novo ou retornado neste dia.</div>
+          <div id="mn-empty" class="empty" style="display:none;padding:36px">Nenhum pagador novo ou retornando neste dia.</div>
         </div>
         <div style="padding:10px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--text3)" id="mn-count"></span>
@@ -1560,6 +1560,8 @@
           tipo:  ci('Tipo de Frete','Tipo Frete','Tp. Frete','Tp Frete','Frete Tipo'),
           modal: ci('Modal de Transporte','Modalidade Transporte','Modalidade','Modal'),
           ramo:  ci('Ramo de Atividade','Ramo Atividade','Segmento Atividade','Ramo','Segmento'),
+          cnpjRem:  ci('CNPJ Remetente','CNPJ/CPF Remetente','CNPJ Rem','CNPJ do Remetente','CNPJ Remet.'),
+          cnpjDest: ci('CNPJ Destinatário','CNPJ Destinatario','CNPJ/CPF Destinatário','CNPJ/CPF Destinatario','CNPJ Dest','CNPJ do Destinatário','CNPJ do Destinatario'),
           cnpj:  ci('CNPJ Remetente','CNPJ/CPF','C.N.P.J.','C.N.P.J','CNPJ','Cnpj'),
         };
 
@@ -1625,6 +1627,10 @@
             if (isNaN(tmp.getTime())) continue;
             dt = tmp.toISOString().slice(0, 10);
           }
+          const cnpjRem = I.cnpjRem >= 0
+            ? (String(r[I.cnpjRem] || '').replace(/\D/g, '').replace(/^0+/, '') || '')
+            : (I.cnpj >= 0 ? (String(r[I.cnpj] || '').replace(/\D/g, '').replace(/^0+/, '') || '') : '');
+          const cnpjDest = I.cnpjDest >= 0 ? (String(r[I.cnpjDest] || '').replace(/\D/g, '').replace(/^0+/, '') || '') : '';
 
           recs.push({
             awb: String(awbVal).trim(), data: dt, filial, source, year,
@@ -1635,7 +1641,9 @@
             valor_mercantil: pNum(r[I.merc]), valor_frete: pNum(r[I.fret]),
             tipo_frete: String(r[I.tipo] || ''), modal: normModal(r[I.modal]),
             ramo: String(r[I.ramo] || '').substring(0, 40),
-            cnpj: I.cnpj >= 0 ? (String(r[I.cnpj] || '').replace(/\D/g, '').replace(/^0+/, '') || '') : '',
+            cnpj: cnpjRem,
+            cnpj_remetente: cnpjRem,
+            cnpj_destinatario: cnpjDest,
             periodo: STATE.periods[STATE.curIdx] || '',
           });
         }
@@ -2368,11 +2376,27 @@
     let ALL_REM_DATES = {};
     function normRem(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
+    function freightPayerInfo(a) {
+      const tipo = String(a?.tipo_frete || '').trim().toUpperCase();
+      if (tipo === 'FOB') {
+        const nome = String(a?.destinatario || '').trim();
+        const cnpj = String(a?.cnpj_destinatario || '').replace(/\D/g, '').replace(/^0+/, '');
+        return { nome, cnpj, tipo, papel: 'Destinatário' };
+      }
+      if (tipo === 'CIF') {
+        const nome = String(a?.remetente || '').trim();
+        const cnpj = String(a?.cnpj_remetente || a?.cnpj || '').replace(/\D/g, '').replace(/^0+/, '');
+        return { nome, cnpj, tipo, papel: 'Remetente' };
+      }
+      return { nome: '', cnpj: '', tipo, papel: '' };
+    }
+
     function rebuildAllAWBIndex() {
       ALL_REM_DATES = {};
       Object.values(STATE.cache).forEach(d => {
         [...d.cur, ...d.prev].forEach(a => {
-          const k = normRem(a.remetente);
+          const payer = freightPayerInfo(a);
+          const k = normRem(payer.nome);
           if (!k) return;
           if (!ALL_REM_DATES[k]) ALL_REM_DATES[k] = new Set();
           ALL_REM_DATES[k].add(a.data);
@@ -2405,8 +2429,10 @@
 
       const clientMap = {};
       dayAWBs.forEach(a => {
-        const k = normRem(a.remetente);
-        if (!clientMap[k]) clientMap[k] = { remetente: a.remetente, cnpj: a.cnpj || '', filial: a.filial, awbs: [], totalFrete: 0, sources: new Set() };
+        const payer = freightPayerInfo(a);
+        const k = normRem(payer.nome);
+        if (!k) return;
+        if (!clientMap[k]) clientMap[k] = { pagador: payer.nome, cnpj: payer.cnpj || '', papel: payer.papel, tipoFrete: payer.tipo || '', filial: a.filial, awbs: [], totalFrete: 0, sources: new Set() };
         clientMap[k].awbs.push(a.awb);
         clientMap[k].totalFrete += a.valor_frete;
         clientMap[k].sources.add(a.source);
@@ -2421,9 +2447,9 @@
       }).filter(a => a.cat !== null);
       _mnAll.sort((a, b) => (a.cat === 'new' ? 0 : 1) - (b.cat === 'new' ? 0 : 1));
 
-      $('mn-title').textContent = `Clientes Novos / Retorno — ${filial} · ${fd(dateStr)}`;
+      $('mn-title').textContent = `Pagadores Novos / Retorno — ${filial} · ${fd(dateStr)}`;
       const totalClientes = Object.keys(clientMap).length;
-      $('mn-sub').textContent = `${_mnAll.length} cliente(s) novo(s) ou retornando (de ${totalClientes} clientes no dia, ${dayAWBs.length} NFs)`;
+      $('mn-sub').textContent = `${_mnAll.length} pagador(es) novo(s) ou retornando (de ${totalClientes} pagadores no dia, ${dayAWBs.length} NFs)`;
       _mnFilter = 'all';
       renderMN();
       $('modal-novos').classList.add('open');
@@ -2445,10 +2471,10 @@
     function renderMN() {
       const q = ($('mn-search')?.value || '').trim().toLowerCase();
       const base = _mnFilter === 'all' ? _mnAll : _mnAll.filter(a => a.cat === _mnFilter);
-      const list = q ? base.filter(a => (a.remetente || '').toLowerCase().includes(q) || (a.cnpj || '').includes(q)) : base;
+      const list = q ? base.filter(a => (a.pagador || '').toLowerCase().includes(q) || (a.cnpj || '').includes(q)) : base;
       const container = $('body-mn');
       container.innerHTML = '';
-      $('mn-count').textContent = `${list.length} cliente(s) exibido(s)`;
+      $('mn-count').textContent = `${list.length} pagador(es) exibido(s)`;
       $('mn-empty').style.display = list.length ? 'none' : 'block';
       list.forEach((a, i) => {
         const isNew = a.cat === 'new';
@@ -2459,7 +2485,10 @@
         row.style.cssText = `display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:9px 20px;border-bottom:1px solid var(--border);align-items:center;${i%2===1?'background:rgba(255,255,255,.012)':''}`;
         row.innerHTML = `
           <div class="mono" style="font-size:11px;color:var(--cyan);user-select:all;padding-right:8px">${cnpjDisplay}</div>
-          <div style="font-weight:700;font-size:13px;word-break:break-word;line-height:1.3;padding-right:12px">${a.remetente || '—'}</div>
+          <div>
+            <div style="font-weight:700;font-size:13px;word-break:break-word;line-height:1.3;padding-right:12px">${a.pagador || '—'}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">${a.tipoFrete || 'N/D'} · ${a.papel || 'Pagador'}</div>
+          </div>
           <div class="mono" style="text-align:center;font-weight:700;font-size:14px;color:var(--text)">${a.awbs.length}</div>
           <div class="mono" style="color:var(--accent);font-weight:800;font-size:12px">${R$(a.totalFrete)}</div>
           <div><span style="background:rgba(249,115,22,.12);color:var(--accent);padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono)">${a.filial}</span></div>
@@ -2472,8 +2501,8 @@
 
     function exportMNCSV() {
       const list = _mnFilter === 'all' ? _mnAll : _mnAll.filter(a => a.cat === _mnFilter);
-      let csv = 'CNPJ,Remetente,AWBs,Frete Total,Filial,Tipo,Status,Ultima vez antes\n';
-      list.forEach(a => { const status = a.cat === 'new' ? 'Nunca transportou' : 'Retornou (+90 dias)'; csv += `"${a.cnpj||''}","${a.remetente}",${a.awbs.length},${a.totalFrete},"${a.filial}","${[...a.sources].join('+')}","${status}","${a.lastDate||''}"\n`; });
+      let csv = 'CNPJ,Pagador,Tipo Frete,Papel,AWBs,Frete Total,Filial,Origem,Status,Ultima vez antes\n';
+      list.forEach(a => { const status = a.cat === 'new' ? 'Nunca transportou pagando o frete' : 'Retornou pagando o frete (+90 dias)'; csv += `"${a.cnpj||''}","${a.pagador}","${a.tipoFrete||''}","${a.papel||''}",${a.awbs.length},${a.totalFrete},"${a.filial}","${[...a.sources].join('+')}","${status}","${a.lastDate||''}"\n`; });
       const el = document.createElement('a');
       el.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
       el.download = 'clientes_novos_retorno.csv';
