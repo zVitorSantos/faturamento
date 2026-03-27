@@ -643,32 +643,28 @@
               <span id="neg-list-count" style="font-size:11px;color:var(--text3);font-family:var(--mono)"></span>
             </div>
           </div>
-          <div style="overflow-x:hidden">
-            <table class="tbl-fixed" style="table-layout:fixed;width:100%">
-              <colgroup>
-                <col style="width:120px"><col style="min-width:130px"><col style="width:90px">
-                <col style="width:60px"><col style="width:90px"><col style="width:80px">
-                <col style="width:100px"><col style="width:90px"><col style="width:50px">
-                <col style="width:100px"><col>
-              </colgroup>
+          <!-- scroll horizontal habilitado; sem table-layout:fixed para colunas respirarem -->
+          <div class="tbl-wrap" style="overflow-x:auto">
+            <table style="width:100%;min-width:900px">
               <thead id="body-neg-head">
                 <tr>
-                  <th data-col="cnpj" data-label="CNPJ" onclick="sortNeg('cnpj')" title="Ordenar">CNPJ ↕</th>
-                  <th data-col="nome" data-label="Razão Social" onclick="sortNeg('nome')" title="Ordenar">Razão Social ↕</th>
-                  <th data-col="movimentou" data-label="Status" onclick="sortNeg('movimentou')" title="Ordenar">Status ↓</th>
-                  <th>Filial</th>
-                  <th data-col="dtNeg" data-label="Dt. Neg." onclick="sortNeg('dtNeg')" title="Ordenar">Dt. Neg. ↕</th>
-                  <th>Tabela</th>
-                  <th data-col="vendedor" data-label="Vendedor" onclick="sortNeg('vendedor')" title="Ordenar">Vendedor ↕</th>
-                  <th data-col="lastDate" data-label="Último" onclick="sortNeg('lastDate')" title="Ordenar">Último ↕</th>
-                  <th data-col="awbs.length" data-label="AWBs" onclick="sortNeg('awbs.length')" title="Ordenar">AWBs ↕</th>
-                  <th data-col="totalFrete" data-label="Frete" onclick="sortNeg('totalFrete')" title="Ordenar">Frete ↕</th>
-                  <th>Contato/Obs.</th>
+                  <th data-col="cnpj"        data-label="CNPJ"        onclick="sortNeg('cnpj')"        title="Ordenar" style="min-width:118px;white-space:nowrap">CNPJ ↕</th>
+                  <th data-col="nome"        data-label="Razão Social" onclick="sortNeg('nome')"        title="Ordenar" style="min-width:160px">Razão Social ↕</th>
+                  <th data-col="movimentou"  data-label="Status"      onclick="sortNeg('movimentou')"  title="Ordenar" style="min-width:88px;white-space:nowrap">Status ↓</th>
+                  <th style="min-width:62px;white-space:nowrap">Filial</th>
+                  <th data-col="dtNeg"       data-label="Dt. Neg."    onclick="sortNeg('dtNeg')"       title="Ordenar" style="min-width:86px;white-space:nowrap">Dt. Neg. ↕</th>
+                  <th style="min-width:80px">Tabela</th>
+                  <th data-col="vendedor"    data-label="Vendedor"    onclick="sortNeg('vendedor')"    title="Ordenar" style="min-width:100px">Vendedor ↕</th>
+                  <th data-col="lastDate"    data-label="Último"      onclick="sortNeg('lastDate')"    title="Ordenar" style="min-width:88px;white-space:nowrap">Último ↕</th>
+                  <th data-col="awbs.length" data-label="AWBs"        onclick="sortNeg('awbs.length')" title="Ordenar" style="min-width:50px;text-align:center">AWBs ↕</th>
+                  <th data-col="totalFrete"  data-label="Frete"       onclick="sortNeg('totalFrete')"  title="Ordenar" style="min-width:110px;white-space:nowrap">Frete ↕</th>
+                  <th style="min-width:160px">Contato/Obs.</th>
                 </tr>
               </thead>
               <tbody id="body-neg"></tbody>
             </table>
           </div>
+          <div class="pag" id="pg-neg"></div>
           <div style="padding:8px 16px;font-size:10px;color:var(--text3);border-top:1px solid var(--border)">
             💡 Clique em uma linha com embarques para ver os AWBs desse cliente
           </div>
@@ -1526,35 +1522,59 @@
         const hdr = rows[hi].map(h => String(h).trim());
 
         const ci = (...ns) => {
+          // normaliza acentos para comparação case-insensitive e accent-insensitive
+          const norm = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+          const normHdr = hdr.map(norm);
           for (const n of ns) {
-            const exact = hdr.findIndex(h => h.toLowerCase() === n.toLowerCase());
+            const nk = norm(n);
+            const exact = normHdr.findIndex(h => h === nk);
             if (exact >= 0) return exact;
           }
           for (const n of ns) {
-            const partial = hdr.findIndex(h => h.toLowerCase().includes(n.toLowerCase()));
+            const nk = norm(n);
+            const partial = normHdr.findIndex(h => h.includes(nk));
             if (partial >= 0) return partial;
           }
           return -1;
         };
 
+        // ── Mapeamento de colunas — prioridade: match exato > match parcial ──
+        // Estratégia: listas ordenadas do mais específico ao mais genérico.
+        // "Tipo" sozinho foi removido pois colide com "Tipo de Veículo", etc.
         const I = {
-          awb: ci('Nro. AWB','AWB','Nro','Numero','Nr.'),
-          data: ci('Data Emissão','Data Emissao','Emiss','Data','Dt.','Emitid'),
-          rem: ci('Remetente','Remet'),
-          dest: ci('Destinatário','Destinatario','Dest'),
-          cid: ci('Cidade'),
-          uf: ci('UF','Estado'),
-          vol: ci('Volume','Vol','Qtd'),
-          peso: ci('Peso'),
-          merc: ci('Valor Mercantil','Mercantil','Merc'),
-          fret: ci('Valor do Frete','Valor Frete','Vl Frete','Vlr Frete','Frete'),
-          tipo: ci('Tipo Frete','Tipo','Modalidade'),
-          modal: ci('Modal'),
-          ramo: ci('Ramo de Atividade','Ramo','Segmento'),
-          cnpj: ci('CNPJ','Cnpj','C.N.P.J'),
+          awb:   ci('Nro. AWB','Numero AWB','Nr. AWB','Num. AWB','AWB','Nro','Nr.','Numero'),
+          data:  ci('Data Emissão','Data Emissao','Dt. Emissão','Dt. Emissao','Dt Emissao',
+                    'Data Emissão','Data de Emissão','Emitido','Emissão','Data','Dt.'),
+          rem:   ci('Remetente','Nome Remetente','Razão Social Rem','Razao Social Rem','Remet'),
+          dest:  ci('Destinatário','Destinatario','Nome Destinatário','Razão Social Dest',
+                    'Razao Social Dest','Dest'),
+          cid:   ci('Cidade Destino','Cidade Dest','Municipio','Município','Cidade'),
+          uf:    ci('UF Destino','UF Dest','Estado Destino','Estado','UF'),
+          vol:   ci('Volumes','Qtd Volumes','Qtd. Volumes','Quantidade','Volume','Vol','Qtd'),
+          peso:  ci('Peso Real','Peso Bruto','Peso Kg','Peso (kg)','Peso'),
+          merc:  ci('Valor Mercantil','Valor da Mercadoria','Vl Mercantil','Vlr Mercantil',
+                    'Vl. Merc.','Mercantil','Merc'),
+          fret:  ci('Valor do Frete','Valor Frete Total','Valor Frete','Vl. do Frete',
+                    'Vl Frete','Vlr Frete','Vl. Frete','Total Frete','Frete'),
+          // "Tipo Frete" antes de "Tipo" para evitar colisão com outras colunas "Tipo X"
+          tipo:  ci('Tipo de Frete','Tipo Frete','Tp. Frete','Tp Frete','Frete Tipo'),
+          modal: ci('Modal de Transporte','Modalidade Transporte','Modalidade','Modal'),
+          ramo:  ci('Ramo de Atividade','Ramo Atividade','Segmento Atividade','Ramo','Segmento'),
+          cnpj:  ci('CNPJ Remetente','CNPJ/CPF','C.N.P.J.','C.N.P.J','CNPJ','Cnpj'),
         };
 
-        if (I.data === -1) {
+        // ── Diagnóstico: avisa se colunas essenciais não foram encontradas ──
+        const missing = [];
+        if (I.awb  < 0) missing.push('AWB');
+        if (I.fret < 0) missing.push('Valor Frete');
+        if (I.data < 0) missing.push('Data');
+        if (missing.length) {
+          // Não interrompe — tenta processar mesmo assim, mas avisa
+          console.warn(`[parseXLS] ${handle.name ?? 'arquivo'}: colunas não encontradas: ${missing.join(', ')}. Cabeçalhos detectados: ${hdr.join(' | ')}`);
+        }
+
+        // ── Fallback: tenta detectar coluna de data por tipo do conteúdo ──
+        if (I.data < 0) {
           for (let col = 0; col < hdr.length; col++) {
             const sample = rows[hi + 1]?.[col];
             if (!sample && sample !== 0) continue;
@@ -1578,9 +1598,14 @@
             dt = `${y}-${m}-${d}`;
           } else if (typeof dt === 'number' && dt > 0) {
             try {
-              const jsDate = new Date(Math.round((dt - 25569) * 86400 * 1000));
+              // Excel serial para JS: compensar fuso para evitar virada de dia em UTC-N
+              const msUtc = Math.round((dt - 25569) * 86400 * 1000);
+              const jsDate = new Date(msUtc);
               if (!isNaN(jsDate.getTime())) {
-                const y = jsDate.getUTCFullYear(), m = String(jsDate.getUTCMonth() + 1).padStart(2, '0'), d = String(jsDate.getUTCDate()).padStart(2, '0');
+                // Usar valores UTC evita drift de fuso horário
+                const y = jsDate.getUTCFullYear();
+                const m = String(jsDate.getUTCMonth() + 1).padStart(2, '0');
+                const d = String(jsDate.getUTCDate()).padStart(2, '0');
                 dt = `${y}-${m}-${d}`;
               } else continue;
             } catch (e) { continue; }
@@ -1610,7 +1635,7 @@
             valor_mercantil: pNum(r[I.merc]), valor_frete: pNum(r[I.fret]),
             tipo_frete: String(r[I.tipo] || ''), modal: normModal(r[I.modal]),
             ramo: String(r[I.ramo] || '').substring(0, 40),
-            cnpj: I.cnpj >= 0 ? String(r[I.cnpj] || '').replace(/\D/g, '') : '',
+            cnpj: I.cnpj >= 0 ? (String(r[I.cnpj] || '').replace(/\D/g, '').replace(/^0+/, '') || '') : '',
             periodo: STATE.periods[STATE.curIdx] || '',
           });
         }
@@ -2513,6 +2538,7 @@
 
         $('neg-file-info').textContent = `${NEG_LIST.length} CNPJs carregados de "${fh.name}"`;
         toast(`✅ ${NEG_LIST.length} CNPJs de negociação carregados.`, 'ok');
+        _negPg = 1;
         computeNegMatches(); renderNeg(); updateNegBadge();
       } catch (e) { if (e.name !== 'AbortError') toast('Erro ao ler planilha: ' + e.message, 'err'); }
     }
@@ -2551,10 +2577,13 @@
     }
 
     let _negSortCol = 'movimentou', _negSortAsc = false;
+    let _negPg = 1;
+    const NEG_PP = 60; // linhas por página
 
     function sortNeg(col) {
       if (_negSortCol === col) { _negSortAsc = !_negSortAsc; } else { _negSortCol = col; _negSortAsc = true; }
       document.querySelectorAll('#body-neg-head th').forEach(th => { const c = th.dataset.col; th.textContent = th.dataset.label + (c === col ? (_negSortAsc ? ' ↑' : ' ↓') : ' ↕'); });
+      _negPg = 1;
       filterNeg();
     }
 
@@ -2590,10 +2619,18 @@
         vendorSel.innerHTML = '<option value="">Todos Vendedores</option>' + vendors.map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
       }
 
+      renderNegPg();
+    }
+
+    function renderNegPg() {
       const tbody = $('body-neg');
       if (!tbody) return;
       tbody.innerHTML = '';
-      NEG_FILTERED.forEach((m, idx) => {
+
+      const start = (_negPg - 1) * NEG_PP;
+      const page = NEG_FILTERED.slice(start, start + NEG_PP);
+
+      page.forEach((m) => {
         const filiais = [...new Set(m.awbs.map(a => a.filial))].join(', ') || '—';
         const cnpjDigits = (m.cnpj || '').replace(/^0+/, '') || m.cnpj;
         const hasAwbs = m.awbs.length > 0;
@@ -2602,20 +2639,39 @@
         tr.title = hasAwbs ? 'Clique para ver os embarques' : '';
         if (hasAwbs) { tr.classList.add('row-clickable'); tr.onclick = () => openNegAwbs(m); }
         const lastFmt = m.lastDate ? new Date(m.lastDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+
+        // Razão Social: trunca com ellipsis e exibe nome completo no title
+        const nomeDisplay = m.nome
+          ? `<span title="${m.nome.replace(/"/g,'&quot;')}" style="display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nome}</span>`
+          : '<span style="color:var(--text3)">—</span>';
+
+        // Tabela: tooltip para textos longos
+        const tabelaDisplay = m.tabela
+          ? `<span title="${m.tabela.replace(/"/g,'&quot;')}" style="display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.tabela}</span>`
+          : '—';
+
+        // Contato/Obs: tooltip
+        const contatoRaw = [m.contato, m.obs].filter(Boolean).join(' · ') || '—';
+        const contatoDisplay = `<span title="${contatoRaw.replace(/"/g,'&quot;')}" style="display:block;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${contatoRaw}</span>`;
+
         tr.innerHTML = `
           <td class="mono" style="font-size:11px;color:var(--cyan);white-space:nowrap">${cnpjDigits}</td>
-          <td style="font-weight:${m.nome?'600':'400'};white-space:normal;min-width:120px">${m.nome||'<span style="color:var(--text3)">—</span>'}</td>
-          <td style="white-space:nowrap">${m.movimentou?'<span style="background:rgba(239,68,68,.13);color:var(--danger);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🔔 Mov.</span>':'<span style="color:var(--text3);font-size:11px">Aguard.</span>'}</td>
+          <td style="font-weight:${m.nome?'600':'400'};padding-right:8px">${nomeDisplay}</td>
+          <td style="white-space:nowrap">${m.movimentou
+            ? '<span style="background:rgba(239,68,68,.13);color:var(--danger);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🔔 Mov.</span>'
+            : '<span style="color:var(--text3);font-size:11px">Aguard.</span>'}</td>
           <td style="font-size:11px;color:var(--text2);white-space:nowrap">${filiais}</td>
           <td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.dtNeg||'—'}</td>
-          <td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.tabela||'—'}</td>
+          <td style="font-size:11px;color:var(--text2)">${tabelaDisplay}</td>
           <td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.vendedor||'—'}</td>
           <td style="white-space:nowrap;color:${m.lastDate?'var(--accent)':'var(--text3)'}">${lastFmt}</td>
           <td class="mono" style="text-align:center">${m.awbs.length||'—'}</td>
-          <td class="mono" style="color:${m.totalFrete>0?'var(--success)':'var(--text3)'}">${m.totalFrete>0?R$(m.totalFrete):'—'}</td>
-          <td style="color:var(--text2);font-size:11px;white-space:normal;min-width:100px">${[m.contato,m.obs].filter(Boolean).join(' · ')||'—'}</td>`;
+          <td class="mono" style="color:${m.totalFrete>0?'var(--success)':'var(--text3)'};white-space:nowrap">${m.totalFrete>0?R$(m.totalFrete):'—'}</td>
+          <td style="color:var(--text2);font-size:11px">${contatoDisplay}</td>`;
         tbody.appendChild(tr);
       });
+
+      renderPag('pg-neg', NEG_FILTERED.length, _negPg, NEG_PP, p => { _negPg = p; renderNegPg(); });
     }
 
     function openNegAwbs(m) {
