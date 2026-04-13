@@ -982,6 +982,7 @@ function computeAnnualProjection(){
   const tomorrow=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().split('T')[0];})();
   const curMonth=new Date().getMonth()+1;
   const allWD={};for(let mo=1;mo<=12;mo++)allWD[mo]=workingDays(curYear,mo);
+  const today = new Date().toISOString().split('T')[0];
   const wdTotalAno=Object.values(allWD).reduce((s,d)=>s+d.length,0);
 
   const filialAccum={};
