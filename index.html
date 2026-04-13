@@ -749,10 +749,10 @@ const bcl=v=>v>=0?'up':'dn';
 const padM=m=>String(m).padStart(2,'0');
 function decodePeriod(p){const[y,m]=p.split('-');return{year:parseInt(y),month:parseInt(m)};}
 
-function projection(totCur,wdCur){const today=new Date().toISOString().split('T')[0];const elapsed=wdCur.filter(d=>d<=today).length;if(elapsed<=0)return 0;return(totCur/elapsed)*wdCur.length;}
-function proRata(totCur,totPrev,wdCur,wdPrev){const today=new Date().toISOString().split('T')[0];const elapsed=wdCur.filter(d=>d<=today).length;if(elapsed<=0||wdPrev.length<=0)return 0;const pr=(totPrev/wdPrev.length)*elapsed;return pr>0?((totCur-pr)/pr*100):0;}
+function projection(totCur,wdCur){const today=new Date().toISOString().split('T')[0];const elapsed=wdCur.filter(d=>d<today).length;if(elapsed<=0)return 0;return(totCur/elapsed)*wdCur.length;}
+function proRata(totCur,totPrev,wdCur,wdPrev){const today=new Date().toISOString().split('T')[0];const elapsed=wdCur.filter(d=>d<today).length;if(elapsed<=0||wdPrev.length<=0)return 0;const pr=(totPrev/wdPrev.length)*elapsed;return pr>0?((totCur-pr)/pr*100):0;}
 
-// ══════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════
 //  CLASSIFY FILE — suporte a SC
 // ══════════════════════════════════════════════════════════
 function classifyFile(name){
@@ -982,8 +982,9 @@ function computeAnnualProjection(){
   const filialAccum={};
   STATE.periods.forEach(p=>{
     const{month}=decodePeriod(p);const d=STATE.cache[p];if(!d)return;
-    const wdDoneCount=allWD[month].filter(dt=>dt<=yesterday).length;
-    d.cur.forEach(a=>{if(a.data>yesterday)return;const f=a.filial;if(!filialAccum[f])filialAccum[f]={realizado:0,diasUteis:0,scPotencial:0,_periods:new Set()};filialAccum[f].realizado+=a.valor_frete;});
+    const wdDoneCount=allWD[month].filter(dt=>dt<today).length;
+    d.cur.forEach(a=>{if(a.data>yesterday)return;const f=a.filial;...filialAccum[f].realizado+=a.valor_frete;});
+    if(d.sc){d.sc.filter(a=>a.filial&&!a.migrated&&a.data<=yesterday).forEach(a=>{const f=a.filial;if(!filialAccum[f])filialAccum[f]={realizado:0,diasUteis:0,scPotencial:0,_periods:new Set()};filialAccum[f].realizado+=a.valor_frete;});}
     // SC do mês atual: soma como potencial
     if(month===curMonth&&d.sc){d.sc.filter(a=>a.filial).forEach(a=>{const f=a.filial;if(!filialAccum[f])filialAccum[f]={realizado:0,diasUteis:0,scPotencial:0,_periods:new Set()};filialAccum[f].scPotencial=(filialAccum[f].scPotencial||0)+a.valor_frete;});}
     Object.keys(filialAccum).forEach(f=>{if(!filialAccum[f]._periods.has(p)&&d.cur.some(a=>a.filial===f&&a.data<=yesterday)){filialAccum[f]._periods.add(p);filialAccum[f].diasUteis+=wdDoneCount;}});
