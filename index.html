@@ -1273,6 +1273,7 @@ function renderFilial(filial){
   if(nodata)nodata.style.display=has?'none':'block';if(dataEl)dataEl.style.display=has?'block':'none';if(!has)return;
   const sCur=stats(cur,filial);const sPrev=stats(prev,filial);const scF=scStats(sc,filial);
   const dmCur=dmap(cur,filial,sc);const dmPrev=dmap(prev,filial,null);
+  const today = new Date().toISOString().split('T')[0];
   const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0];})();
   const elapsedDays=_wdC.filter(d=>d<=yesterday).length;
   // Inclui SC no total faturado da filial para projeção (apenas o que foi faturado até ontem)
@@ -1661,6 +1662,7 @@ function renderComissao(){
   const commAno=calcComm(allCur,null);
   const commMes=calcComm(_data.cur,null);
   const commSCMes=calcCommSC(sc,null);
+  const today = new Date().toISOString().split('T')[0];
   const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0];})();
   const elapsed=_wdC.filter(d=>d<=yesterday).length;
   // Inclui SC na base de projeção da comissão (apenas o que foi faturado até ontem)
