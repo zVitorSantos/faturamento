@@ -988,7 +988,7 @@ function computeAnnualProjection(){
   STATE.periods.forEach(p=>{
     const{month}=decodePeriod(p);const d=STATE.cache[p];if(!d)return;
     const wdDoneCount=allWD[month].filter(dt=>dt<today).length;
-    d.cur.forEach(a=>{if(a.data>yesterday)return;const f=a.filial;...filialAccum[f].realizado+=a.valor_frete;});
+    d.cur.forEach(a=>{if(a.data>yesterday)return;const f=a.filial;filialAccum[f].realizado+=a.valor_frete;});
     if(d.sc){d.sc.filter(a=>a.filial&&!a.migrated&&a.data<=yesterday).forEach(a=>{const f=a.filial;if(!filialAccum[f])filialAccum[f]={realizado:0,diasUteis:0,scPotencial:0,_periods:new Set()};filialAccum[f].realizado+=a.valor_frete;});}
     // SC do mês atual: soma como potencial
     if(month===curMonth&&d.sc){d.sc.filter(a=>a.filial).forEach(a=>{const f=a.filial;if(!filialAccum[f])filialAccum[f]={realizado:0,diasUteis:0,scPotencial:0,_periods:new Set()};filialAccum[f].scPotencial=(filialAccum[f].scPotencial||0)+a.valor_frete;});}
@@ -1018,8 +1018,18 @@ function computeAnnualProjection(){
 // ══════════════════════════════════════════════════════════
 //  SCAN + LOAD PERÍODOS
 // ══════════════════════════════════════════════════════════
-async function openFolder(){if(!window.showDirectoryPicker){toast('Use Chrome ou Edge.','err');return;}try{STATE.rootDir=await window.showDirectoryPicker({mode:'read'});await scanAllPeriods();}catch(e){if(e.name!=='AbortError')toast('Erro: '+e.message,'err');}}
-
+async function openFolder() {
+    if (!window.showDirectoryPicker) {
+        toast('Use Chrome ou Edge.', 'err');
+        return;
+    }
+    try {
+        STATE.rootDir = await window.showDirectoryPicker({ mode: 'read' });
+        await scanAllPeriods(); // Certifique-se que scanAllPeriods existe no seu código completo
+    } catch (e) {
+        if (e.name !== 'AbortError') toast('Erro: ' + e.message, 'err');
+    }
+}
 async function scanAllPeriods(){
   showLoading('Varrendo pastas...');const periods=new Set();
   try{STATE.historyDir=await STATE.rootDir.getDirectoryHandle('historico',{create:false});}catch(e){STATE.historyDir=null;}
