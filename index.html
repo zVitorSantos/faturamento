@@ -207,7 +207,7 @@
     <span id="neg-badge-tab" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px;font-weight:700">!</span>
   </div>
   <div class="tab" onclick="showPane('awb',this)">Busca AWB</div>
-  <div class="tab" onclick="showPane('comissao',this)" style="font-weight:800">💰 Comissão</div>
+  <div class="tab" onclick="showPane('comissao',this)" style="font-weight:800">Comissão</div>
 </div>
 
 <div class="content">
@@ -587,7 +587,7 @@
             <th style="text-align:right">FOB (base)</th>
             <th style="text-align:right">CIF (base)</th>
             <th style="text-align:right">Comis. Gerente</th>
-            <th style="text-align:right;color:var(--gold)">💰 Sua Comissão</th>
+            <th style="text-align:right;color:var(--gold)">Sua Comissão</th>
             <th style="text-align:right;color:var(--sc)">SC a recuperar</th>
             <th style="text-align:right;color:var(--warning)">Comis. potencial SC</th>
           </tr>
@@ -625,7 +625,7 @@
             <th style="text-align:right">FOB faturado</th>
             <th style="text-align:right">CIF faturado</th>
             <th style="text-align:right">Comis. Gerente</th>
-            <th style="text-align:right;color:var(--gold)">💰 Sua Comissão</th>
+            <th style="text-align:right;color:var(--gold)">Sua Comissão</th>
             <th style="text-align:right;color:var(--sc)">SC do dia</th>
             <th style="text-align:right;color:var(--warning)">Com. potencial SC</th>
           </tr>
@@ -1672,12 +1672,12 @@ function renderComissao(){
   if(bannerGrid){
     bannerGrid.innerHTML=`
       <div class="kpi" style="border-top:3px solid var(--gold)">
-        <div class="kpi-lbl">💰 Minha Comissão — Ano</div>
+        <div class="kpi-lbl">Minha Comissão — Ano</div>
         <div class="kpi-val" style="color:var(--gold)">${R$(commAno.myComm)}</div>
         <div class="kpi-sub">Gerente: ${R$(commAno.gerente)}</div>
       </div>
       <div class="kpi" style="border-top:3px solid var(--cyan)">
-        <div class="kpi-lbl">💰 Minha Comissão — Mês</div>
+        <div class="kpi-lbl">Minha Comissão — Mês</div>
         <div class="kpi-val" style="color:var(--cyan)">${R$(commMes.myComm)}</div>
         <div class="kpi-sub">Projeção mês: ${R$(projMes)}</div>
       </div>
