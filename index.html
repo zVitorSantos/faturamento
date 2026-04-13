@@ -1266,33 +1266,69 @@ function topClientes(canvId,key,filial,color,awbs){
 const FILIAL_COLORS=[{color:'var(--accent)',bar:'rgba(249,115,22,.85)'},{color:'var(--pet)',bar:'rgba(16,185,129,.85)'},{color:'var(--cyan)',bar:'rgba(6,182,212,.85)'},{color:'var(--warning)',bar:'rgba(245,158,11,.85)'},{color:'#a78bfa',bar:'rgba(139,92,246,.85)'}];
 function filialColorIdx(filial){return STATE.filiais.indexOf(filial)%FILIAL_COLORS.length;}
 
-function renderFilial(filial){
-  const pfx=filial.toLowerCase();const ci=filialColorIdx(filial);const color=FILIAL_COLORS[ci].color;const barCol=FILIAL_COLORS[ci].bar;
-  const{cur,prev,sc}=_data;
-  const nodata=$(`${pfx}-nodata`);const dataEl=$(`${pfx}-data`);const has=cur.some(a=>a.filial===filial)||( sc&&sc.some(a=>a.filial===filial));
-  if(nodata)nodata.style.display=has?'none':'block';if(dataEl)dataEl.style.display=has?'block':'none';if(!has)return;
-  const sCur=stats(cur,filial);const sPrev=stats(prev,filial);const scF=scStats(sc,filial);
-  const dmCur=dmap(cur,filial,sc);const dmPrev=dmap(prev,filial,null);
+function renderFilial(filial) {
+  const pfx = filial.toLowerCase();
+  const ci = filialColorIdx(filial);
+  const color = FILIAL_COLORS[ci].color;
+  const barCol = FILIAL_COLORS[ci].bar;
+  const { cur, prev, sc } = _data;
+
+  // 1. DEFINIÇÃO DAS DATAS (Sempre no topo para evitar ReferenceError)
   const today = new Date().toISOString().split('T')[0];
-  const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0];})();
-  const elapsedDays=_wdC.filter(d=>d<=yesterday).length;
-  // Inclui SC no total faturado da filial para projeção (apenas o que foi faturado até ontem)
-  const scFaturadoAteOntem=sc?sc.filter(a=>a.filial===filial&&a.data<=yesterday).reduce((s,a)=>s+a.valor_frete,0):0;
-  const totalFaturadoComSC=sCur.total+scFaturadoAteOntem;
-  const proj=elapsedDays>0?(totalFaturadoComSC/elapsedDays)*_wdC.length:0;const med=elapsedDays>0?totalFaturadoComSC/elapsedDays:0;
-  const pVal=proRata(totalFaturadoComSC,sPrev.total,_wdC,_wdP);const projPct=sPrev.total>0?(proj/sPrev.total*100):0;const prog=sPrev.total>0?Math.min(sCur.total/sPrev.total*100,100):0;
+  const yesterday = (() => { 
+    const d = new Date(); 
+    d.setDate(d.getDate() - 1); 
+    return d.toISOString().split('T')[0]; 
+  })();
 
-  if($(`lbl-${pfx}`))$(`lbl-${pfx}`).textContent=`${MONTHS[_mo]} ${_curY}`;
+  const nodata = $(`${pfx}-nodata`);
+  const dataEl = $(`${pfx}-data`);
+  const has = cur.some(a => a.filial === filial) || (sc && sc.some(a => a.filial === filial));
+  
+  if (nodata) nodata.style.display = has ? 'none' : 'block';
+  if (dataEl) dataEl.style.display = has ? 'block' : 'none';
+  if (!has) return;
 
-  // SC banner filial
-  const scBannerEl=$(`${pfx}-sc-banner`);
-  if(scBannerEl){
-    if(scF.total>0){
-      scBannerEl.style.display='flex';set(`${pfx}-sc-total`,R$(scF.total));set(`${pfx}-sc-awbs`,String(scF.awbs)+' AWBs');set(`${pfx}-sc-migrado`,R$(scF.migrado));set(`${pfx}-sc-arecuperar`,R$(scF.aRecuperar));
-      const scHoje=sc?sc.filter(a=>a.filial===filial&&a.data===today&&!a.migrated).reduce((s,a)=>s+a.valor_frete,0):0;const scHojeAwbs=sc?sc.filter(a=>a.filial===filial&&a.data===today&&!a.migrated).length:0;
-      set(`${pfx}-sc-hoje`,scHojeAwbs>0?R$(scHoje):'R$ 0,00');
-      if($(`${pfx}-sc-sub`))$(`${pfx}-sc-sub`).textContent=scF.aRecuperar>0?`⚡ ${R$(scF.aRecuperar)} ainda sem comissão — converter até o fim do mês para ganhar comissão`:'✅ Todo SC migrou para comissão';
-    }else scBannerEl.style.display='none';
+  const sCur = stats(cur, filial);
+  const sPrev = stats(prev, filial);
+  const scF = scStats(sc, filial);
+  const dmCur = dmap(cur, filial, sc);
+  const dmPrev = dmap(prev, filial, null);
+
+  // 2. CÁLCULO DE DIAS ÚTEIS (Até ontem para garantir 7 dias restantes)
+  const elapsedDays = _wdC.filter(d => d <= yesterday).length;
+
+  // 3. INCLUSÃO DO SC NO FATURADO (Apenas o que foi faturado até ontem)
+  const scFaturadoAteOntem = sc ? sc.filter(a => a.filial === filial && a.data <= yesterday).reduce((s, a) => s + a.valor_frete, 0) : 0;
+  const totalFaturadoComSC = sCur.total + scFaturadoAteOntem;
+
+  // 4. PROJEÇÃO E MÉDIA
+  const proj = elapsedDays > 0 ? (totalFaturadoComSC / elapsedDays) * _wdC.length : 0;
+  const med = elapsedDays > 0 ? totalFaturadoComSC / elapsedDays : 0;
+  const pVal = proRata(totalFaturadoComSC, sPrev.total, _wdC, _wdP);
+  const projPct = sPrev.total > 0 ? (proj / sPrev.total * 100) : 0;
+  const prog = sPrev.total > 0 ? Math.min(sCur.total / sPrev.total * 100, 100) : 0;
+
+  if ($(`lbl-${pfx}`)) $(`lbl-${pfx}`).textContent = `${MONTHS[_mo]} ${_curY}`;
+
+  // 5. BANNER SC (Usando a variável 'today' definida no topo)
+  const scBannerEl = $(`${pfx}-sc-banner`);
+  if (scBannerEl) {
+    if (scF.total > 0) {
+      scBannerEl.style.display = 'flex';
+      set(`${pfx}-sc-total`, R$(scF.total));
+      set(`${pfx}-sc-awbs`, String(scF.awbs) + ' AWBs');
+      set(`${pfx}-sc-migrado`, R$(scF.migrado));
+      set(`${pfx}-sc-arecuperar`, R$(scF.aRecuperar));
+      
+      const scHoje = sc ? sc.filter(a => a.filial === filial && a.data === today && !a.migrated).reduce((s, a) => s + a.valor_frete, 0) : 0;
+      const scHojeAwbs = sc ? sc.filter(a => a.filial === filial && a.data === today && !a.migrated).length : 0;
+      
+      set(`${pfx}-sc-hoje`, scHojeAwbs > 0 ? R$(scHoje) : 'R$ 0,00');
+      if ($(`${pfx}-sc-sub`)) $(`${pfx}-sc-sub`).textContent = scF.aRecuperar > 0 ? `⚡ ${R$(scF.aRecuperar)} ainda sem comissão — converter até o fim do mês para ganhar comissão` : '✅ Todo SC migrou para comissão';
+    } else {
+      scBannerEl.style.display = 'none';
+    }
   }
 
   // KPIs
