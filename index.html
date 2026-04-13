@@ -749,15 +749,31 @@ const bcl=v=>v>=0?'up':'dn';
 const padM=m=>String(m).padStart(2,'0');
 function decodePeriod(p){const[y,m]=p.split('-');return{year:parseInt(y),month:parseInt(m)};}
 
+/**
+ * Calcula a projeção baseada nos dias úteis decorridos.
+ * Considera apenas os dias úteis que já passaram (menores que hoje).
+ */
 function projection(totCur, wdCur) {
   const today = new Date().toISOString().split('T')[0];
   const elapsed = wdCur.filter(d => d < today).length;
-  if (elapsed <= 0) return 0;
+  if (elapsed <= 0) return totCur; // Se nenhum dia útil passou, a projeção é o total atual
   return (totCur / elapsed) * wdCur.length;
 }
-function proRata(totCur,totPrev,wdCur,wdPrev){const today=new Date().toISOString().split('T')[0];const elapsed=wdCur.filter(d=>d<today).length;if(elapsed<=0||wdPrev.length<=0)return 0;const pr=(totPrev/wdPrev.length)*elapsed;return pr>0?((totCur-pr)/pr*100):0;}
 
-  // ══════════════════════════════════════════════════════════
+/**
+ * Calcula o Pro-Rata comparando o faturamento atual com o proporcional do período anterior.
+ */
+function proRata(totCur, totPrev, wdCur, wdPrev) {
+  const today = new Date().toISOString().split('T')[0];
+  const elapsed = wdCur.filter(d => d < today).length;
+  if (elapsed <= 0 || wdPrev.length <= 0) return 0;
+  
+  // Calcula quanto deveria ter faturado no período anterior até o mesmo número de dias úteis
+  const pr = (totPrev / wdPrev.length) * elapsed;
+  return pr > 0 ? ((totCur - pr) / pr * 100) : 0;
+}
+
+// ══════════════════════════════════════════════════════════
 //  CLASSIFY FILE — suporte a SC
 // ══════════════════════════════════════════════════════════
 function classifyFile(name){
@@ -891,287 +907,17 @@ function rebuildOverviewFilialKPIs(){
   kpiGrid.innerHTML='';
   const colors=['a','e','b','c','d'];
   STATE.filiais.forEach((f,i)=>{
-    const c=colors[i%colors.length];
-    kpiGrid.innerHTML+=`
-      <div class="kpi ${c}">
-        <div class="kpi-lbl">${f} <span class="lbl-cur"></span></div>
-        <div class="kpi-val" id="ov-${f.toLowerCase()}">—</div>
-        <div class="kpi-sub" id="ov-${f.toLowerCase()}-sub"></div>
-      </div>`;
+    const fl=f.toLowerCase();
+    const div=document.createElement('div');
+    div.className=`kpi ${colors[i%colors.length]}`;
+    div.innerHTML=`<div class="kpi-lbl">${f}</div><div class="kpi-val" id="ov-${fl}">—</div><div class="kpi-sub" id="ov-${fl}-sub"></div>`;
+    div.onclick=()=>showPane('filial_'+f,$(`tab-${fl}`));
+    kpiGrid.appendChild(div);
   });
 }
 
-function applyBranchLabels(){if($('hdr-filiais-sub')&&STATE.filiais.length>0)$('hdr-filiais-sub').textContent=STATE.filiais.join(' · ');}
-
-document.addEventListener('DOMContentLoaded',()=>{
-  const y=new Date().getFullYear();
-  if($('cfg-cur-year')&&!$('cfg-cur-year').value)$('cfg-cur-year').value=y;
-  if($('cfg-prev-year')&&!$('cfg-prev-year').value)$('cfg-prev-year').value=y-1;
-});
-
 // ══════════════════════════════════════════════════════════
-//  GERAR PASTA MODELO
-// ══════════════════════════════════════════════════════════
-async function generateTemplateStructure(){
-  if(!window.showDirectoryPicker){toast('Use Chrome ou Edge.','err');return;}
-  try{
-    const curYear=parseInt($('cfg-cur-year')?.value||new Date().getFullYear(),10)||new Date().getFullYear();
-    const prevYear=parseInt($('cfg-prev-year')?.value||(curYear-1),10)||(curYear-1);
-    const exemplar=($('cfg-example-filial')?.value||'ABC').trim().toUpperCase()||'ABC';
-    const base=await window.showDirectoryPicker({mode:'readwrite'});
-    async function writeReadme(d,fn,c){const fh=await d.getFileHandle(fn,{create:true});const w=await fh.createWritable();await w.write(c);await w.close();}
-    async function createAnnualYear(year){const yd=await base.getDirectoryHandle(String(year),{create:true});const fd=await yd.getDirectoryHandle(exemplar,{create:true});await writeReadme(fd,'LEIA-ME.txt',`Coloque aqui os arquivos XLS da filial ${exemplar} para o ano ${year}.\nFormato: ${exemplar}-Carteira.xls, ${exemplar}-Extra.xls`);}
-    await createAnnualYear(prevYear);
-    for(const hYear of[prevYear-1,prevYear-2].filter(y=>y>=2020))await createAnnualYear(hYear);
-    const curDir=await base.getDirectoryHandle(String(curYear),{create:true});
-    for(let m=1;m<=12;m++){const md=await curDir.getDirectoryHandle(padM(m),{create:true});const fd=await md.getDirectoryHandle(exemplar,{create:true});await writeReadme(fd,'LEIA-ME.txt',`Coloque aqui os XLS da filial ${exemplar} — ${padM(m)}/${curYear}.\nArquivos: ${exemplar}-Carteira.xls, ${exemplar}-Extra.xls, ${exemplar}-SC.xls`);}
-    toast('Pasta modelo criada com sucesso!','ok');
-  }catch(e){if(e.name!=='AbortError')toast('Erro: '+e.message,'err');}
-}
-
-// ══════════════════════════════════════════════════════════
-//  HISTÓRICO
-// ══════════════════════════════════════════════════════════
-async function loadHistory(){
-  const raw={};
-  const currentYear=STATE.periods.length?decodePeriod(STATE.periods[0]).year:null;
-  const processedYears=new Set();
-  async function absorbYear(yearHandle,year){
-    const yearAWBs=await readAnnualAllMonths(yearHandle,year);
-    yearAWBs.forEach(a=>{const mo=parseInt((a.data||'').slice(5,7));if(!mo||mo<1||mo>12)return;if(!raw[a.filial])raw[a.filial]={};if(!raw[a.filial][year])raw[a.filial][year]={};raw[a.filial][year][mo]=(raw[a.filial][year][mo]||0)+a.valor_frete;});
-  }
-  for await(const[yearStr,yearHandle]of STATE.rootDir.entries()){
-    if(yearHandle.kind!=='directory')continue;if(yearStr==='historico')continue;
-    const year=parseInt(yearStr);if(isNaN(year)||year<2015||year>2040)continue;
-    if(year===currentYear)continue;
-    await absorbYear(yearHandle,year);processedYears.add(year);
-  }
-  if(STATE.historyDir){for await(const[yearStr,yearHandle]of STATE.historyDir.entries()){if(yearHandle.kind!=='directory')continue;const year=parseInt(yearStr);if(isNaN(year)||year<2015||year>2040)continue;if(processedYears.has(year))continue;await absorbYear(yearHandle,year);}}
-  STATE.history={};
-  Object.keys(raw).forEach(filial=>{STATE.history[filial]=computeFilialHistory(filial,raw[filial]);});
-}
-
-async function readAnnualAllMonths(yearHandle,year){
-  const dirs=[yearHandle];
-  for(const n of['ANUAL','Anual','anual','CONSOLIDADO','Consolidado','consolidado']){try{dirs.push(await yearHandle.getDirectoryHandle(n,{create:false}));}catch(_){}}
-  const all=[];for(const dir of dirs)all.push(...await readDirAWBs(dir,year));
-  const seen=new Set();return all.filter(a=>{const k=[a.awb,a.data,a.filial,a.source].join('|');if(seen.has(k))return false;seen.add(k);return true;});
-}
-
-function computeFilialHistory(filial,byYear){
-  const allMonths=[];const byYearTotals={};
-  Object.entries(byYear).forEach(([yr,months])=>{const year=parseInt(yr);let yt=0;Object.entries(months).forEach(([mo,total])=>{allMonths.push({year,month:parseInt(mo),total});yt+=total;});byYearTotals[year]=yt;});
-  if(!allMonths.length)return null;
-  const sorted=[...allMonths].sort((a,b)=>b.total-a.total);
-  const bestMonth=sorted[0];const worstMonth=sorted[sorted.length-1];const topMonths=sorted.slice(0,5);
-  const bestYearEntry=Object.entries(byYearTotals).sort((a,b)=>b[1]-a[1])[0];
-  const bestYear=bestYearEntry?{year:parseInt(bestYearEntry[0]),total:bestYearEntry[1]}:null;
-  const avgMonthly=allMonths.reduce((s,m)=>s+m.total,0)/allMonths.length;
-  const byMonthNum={};allMonths.forEach(({month,total})=>{if(!byMonthNum[month])byMonthNum[month]=[];byMonthNum[month].push(total);});
-  const seasonality={};Object.entries(byMonthNum).forEach(([mo,vals])=>{const avg=vals.reduce((s,v)=>s+v,0)/vals.length;seasonality[parseInt(mo)]=avgMonthly>0?avg/avgMonthly:1;});
-  return{byYear:byYearTotals,byMonthNum,seasonality,bestMonth,bestYear,worstMonth,topMonths,avgMonthly,allMonths};
-}
-
-// ══════════════════════════════════════════════════════════
-//  PROJEÇÃO ANUAL (inclui SC potencial do mês atual)
-// ══════════════════════════════════════════════════════════
-function computeAnnualProjection(){
-  if(!STATE.periods.length)return;
-  const curYear=decodePeriod(STATE.periods[0]).year;
-  const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0];})();
-  const tomorrow=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().split('T')[0];})();
-  const curMonth=new Date().getMonth()+1;
-  const allWD={};for(let mo=1;mo<=12;mo++)allWD[mo]=workingDays(curYear,mo);
-  const today = new Date().toISOString().split('T')[0];
-  const wdTotalAno=Object.values(allWD).reduce((s,d)=>s+d.length,0);
-
-  const filialAccum={};
-  STATE.periods.forEach(p=>{
-    const{month}=decodePeriod(p);const d=STATE.cache[p];if(!d)return;
-    const wdDoneCount=allWD[month].filter(dt=>dt<today).length;
-    d.cur.forEach(a=>{if(a.data>yesterday)return;const f=a.filial;filialAccum[f].realizado+=a.valor_frete;});
-    if(d.sc){d.sc.filter(a=>a.filial&&!a.migrated&&a.data<=yesterday).forEach(a=>{const f=a.filial;if(!filialAccum[f])filialAccum[f]={realizado:0,diasUteis:0,scPotencial:0,_periods:new Set()};filialAccum[f].realizado+=a.valor_frete;});}
-    // SC do mês atual: soma como potencial
-    if(month===curMonth&&d.sc){d.sc.filter(a=>a.filial).forEach(a=>{const f=a.filial;if(!filialAccum[f])filialAccum[f]={realizado:0,diasUteis:0,scPotencial:0,_periods:new Set()};filialAccum[f].scPotencial=(filialAccum[f].scPotencial||0)+a.valor_frete;});}
-    Object.keys(filialAccum).forEach(f=>{if(!filialAccum[f]._periods.has(p)&&d.cur.some(a=>a.filial===f&&a.data<=yesterday)){filialAccum[f]._periods.add(p);filialAccum[f].diasUteis+=wdDoneCount;}});
-  });
-
-  STATE.projection={byFilial:{},consolidated:null};
-  STATE.filiais.forEach(filial=>{
-    const accum=filialAccum[filial];const hist=STATE.history[filial]||null;
-    const histAnualRef=hist?.bestYear?.total||null;const histAvgAnual=hist?Object.values(hist.byYear).reduce((s,v)=>s+v,0)/Object.keys(hist.byYear).length:null;
-    if(!accum||accum.diasUteis<3){STATE.projection.byFilial[filial]={projectedTotal:histAnualRef||0,basedOnRunRate:0,seasonalAdjustment:0,confidence:'historico',vsBestYear:histAnualRef,vsHistoricalAvg:histAvgAnual,vsBestYearPct:null,vsHistAvgPct:null,dailyRate:0,diasRealizados:0,realizadoAteHoje:0,scPotencial:0};return;}
-    const dailyRate=accum.realizado/accum.diasUteis;
-    let wdRestantes=0;for(let mo=curMonth;mo<=12;mo++)wdRestantes+=allWD[mo].filter(d=>d>=tomorrow).length;
-    let projSazonal=accum.realizado;let totalSeasonalAdj=0;
-    for(let mo=curMonth;mo<=12;mo++){const wdLeft=allWD[mo].filter(d=>d>=tomorrow).length;if(wdLeft<=0)continue;const rawIdx=hist?.seasonality?.[mo]??1.0;const cappedIdx=Math.min(Math.max(rawIdx,0.5),2.0);const adjRate=dailyRate*cappedIdx;projSazonal+=adjRate*wdLeft;totalSeasonalAdj+=(adjRate-dailyRate)*wdLeft;}
-    let finalProjection=projSazonal;let confidence='realista';
-    if(histAnualRef&&accum.diasUteis<15){const blendW=Math.min(accum.diasUteis/15,1);const histDailyRate=histAnualRef/wdTotalAno;const histEstimate=accum.realizado+histDailyRate*wdRestantes;finalProjection=blendW*projSazonal+(1-blendW)*histEstimate;confidence=accum.diasUteis<8?'conservador':'realista';}
-    else if(accum.diasUteis>=15){if(histAnualRef&&finalProjection>histAnualRef*1.08)confidence='agressivo';else if(histAnualRef&&finalProjection<histAnualRef*0.92)confidence='conservador';}
-    const vsBestYearPct=histAnualRef?((finalProjection-histAnualRef)/histAnualRef*100):null;
-    const vsHistAvgPct=histAvgAnual?((finalProjection-histAvgAnual)/histAvgAnual*100):null;
-    STATE.projection.byFilial[filial]={projectedTotal:Math.round(finalProjection),basedOnRunRate:Math.round(accum.realizado+dailyRate*wdRestantes),seasonalAdjustment:Math.round(totalSeasonalAdj),confidence,vsBestYear:histAnualRef,vsHistoricalAvg:histAvgAnual,vsBestYearPct,vsHistAvgPct,dailyRate:Math.round(dailyRate),diasRealizados:accum.diasUteis,realizadoAteHoje:Math.round(accum.realizado),scPotencial:Math.round(accum.scPotencial||0)};
-  });
-  const vals=Object.values(STATE.projection.byFilial).filter(v=>v.realizadoAteHoje>0);
-  if(vals.length){const conf=vals.every(v=>v.confidence==='agressivo')?'agressivo':vals.some(v=>v.confidence==='conservador')?'conservador':'realista';STATE.projection.consolidated={projectedTotal:vals.reduce((s,v)=>s+v.projectedTotal,0),realizadoAteHoje:vals.reduce((s,v)=>s+(v.realizadoAteHoje||0),0),scPotencial:vals.reduce((s,v)=>s+(v.scPotencial||0),0),confidence:conf};}
-}
-
-// ══════════════════════════════════════════════════════════
-//  SCAN + LOAD PERÍODOS
-// ══════════════════════════════════════════════════════════
-async function openFolder() {
-    if (!window.showDirectoryPicker) {
-        toast('Use Chrome ou Edge.', 'err');
-        return;
-    }
-    try {
-        STATE.rootDir = await window.showDirectoryPicker({ mode: 'read' });
-        await scanAllPeriods(); // Certifique-se que scanAllPeriods existe no seu código completo
-    } catch (e) {
-        if (e.name !== 'AbortError') toast('Erro: ' + e.message, 'err');
-    }
-}
-async function scanAllPeriods(){
-  showLoading('Varrendo pastas...');const periods=new Set();
-  try{STATE.historyDir=await STATE.rootDir.getDirectoryHandle('historico',{create:false});}catch(e){STATE.historyDir=null;}
-  for await(const[yearStr,yearHandle]of STATE.rootDir.entries()){
-    if(yearHandle.kind!=='directory')continue;if(yearStr==='historico')continue;
-    const year=parseInt(yearStr);if(isNaN(year)||year<2020||year>2040)continue;
-    for await(const[monthStr,monthHandle]of yearHandle.entries()){
-      if(monthHandle.kind!=='directory')continue;const month=parseInt(monthStr);if(isNaN(month)||month<1||month>12)continue;
-      let hasFile=false;
-      for await(const[fname,fHandle]of monthHandle.entries()){if(fHandle.kind==='file'&&classifyFile(fname)){hasFile=true;break;}if(fHandle.kind==='directory'){for await(const[subFname]of fHandle.entries()){if(classifyFile(subFname)){hasFile=true;break;}}if(hasFile)break;}}
-      if(hasFile)periods.add(`${year}-${padM(month)}`);
-    }
-  }
-  if(periods.size===0){hideLoading();toast('Nenhum mês com arquivos XLS encontrado.','err');return;}
-  const sorted=[...periods].sort();const latestYear=Math.max(...sorted.map(p=>decodePeriod(p).year));
-  STATE.periods=sorted.filter(p=>decodePeriod(p).year===latestYear);
-  STATE.cache={};STATE.curIdx=STATE.periods.length-1;
-  const apEl=$('ap');apEl.innerHTML='<option value="">Todos</option>';
-  sorted.forEach(p=>{const{year,month}=decodePeriod(p);const opt=document.createElement('option');opt.value=p;opt.textContent=`${MONTHS[month].substring(0,3)} ${year}`;apEl.appendChild(opt);});
-  $('pane-welcome').classList.remove('active');$('main-tabs').style.display='flex';$('period-nav').style.display='flex';$('hdr-status').style.display='inline';$('open-btn-lbl').textContent='Recarregar';
-  const total=STATE.periods.length;let loaded=0;
-  for(const p of STATE.periods){const{year:cy,month:mo}=decodePeriod(p);showLoading(`Lendo ${total} mês${total>1?'es':''}...`,`${MONTHS[mo]} ${cy} • ${loaded+1} de ${total}`,Math.round((loaded/total)*100));STATE.cache[p]=await loadPeriodData(cy,cy-1,mo);loaded++;showLoading(`Lendo ${total} mês${total>1?'es':''}...`,`${MONTHS[mo]} ${cy} • ${loaded} de ${total}`,Math.round((loaded/total)*100));}
-  showLoading('Lendo histórico...','Calculando métricas históricas...',98);await loadHistory();
-  hideLoading();
-  toast(`✅ ${loaded} mês(es) carregados${Object.keys(STATE.history||{}).length?' + histórico':''}${countSCTotal()>0?' + SC':''}`, 'ok');
-  discoverFiliaisFromData();buildDynamicTabs();buildDynamicPanes();applyBranchLabels();
-  renderIntelFreteAnalysis();renderIntelTopClientes();
-  const ovTab=document.querySelector('.tab[onclick*="overview"]');if(ovTab)ovTab.style.display=STATE.filiais.length<=1?'none':'';
-  rebuildAllAWBIndex();computeAnnualProjection();await loadAndRender();
-  $$('.tab').forEach(t=>t.classList.remove('active'));$$('.pane').forEach(p=>p.classList.remove('active'));
-  if(STATE.filiais.length===1){const f=STATE.filiais[0];const tab=$(`tab-${f.toLowerCase()}`);const pane=$(`pane-filial_${f}`);if(tab)tab.classList.add('active');if(pane){pane.classList.add('active');renderPane('filial_'+f);}}
-  else{const ot=document.querySelector('.tab[onclick*="overview"]');if(ot)ot.classList.add('active');const op=$('pane-overview');if(op){op.classList.add('active');renderPane('overview');}}
-}
-
-function countSCTotal(){let t=0;Object.values(STATE.cache).forEach(d=>{if(d.sc)t+=d.sc.length;});return t;}
-
-async function navMonth(dir){const newIdx=STATE.curIdx+dir;if(newIdx<0||newIdx>=STATE.periods.length)return;STATE.curIdx=newIdx;await loadAndRender();}
-function updateNavBtns(){$('btn-prev').disabled=STATE.curIdx<=0;$('btn-next').disabled=STATE.curIdx>=STATE.periods.length-1;}
-
-async function loadAndRender(){
-  const periodKey=STATE.periods[STATE.curIdx];const{year:curYear,month}=decodePeriod(periodKey);const prevYear=curYear-1;
-  updateNavBtns();updatePeriodChip(curYear,month,prevYear);
-  if(!STATE.cache[periodKey]){showLoading(`Lendo ${MONTHS[month]} ${curYear}...`);STATE.cache[periodKey]=await loadPeriodData(curYear,prevYear,month);hideLoading();}
-  const data=STATE.cache[periodKey];const wdCur=workingDays(curYear,month);const wdPrev=workingDays(prevYear,month);
-  const _allDts=data.cur.map(a=>a.data).sort();const _dtRange=_allDts.length?` · ${_allDts[0]} → ${_allDts[_allDts.length-1]}`:'';
-  const scCount=data.sc?data.sc.length:0;
-  $('hdr-status').textContent=`${data.cur.length} cur + ${data.prev.length} prev + ${scCount} SC${_dtRange}`;
-  $$('.lbl-cur').forEach(el=>el.textContent=curYear);$$('.lbl-prev').forEach(el=>el.textContent=prevYear);
-  renderCurrentPane(data,wdCur,wdPrev,curYear,prevYear,month);
-}
-
-async function getMonthDir(year,mo){try{let d=STATE.rootDir;d=await d.getDirectoryHandle(String(year),{create:false});d=await d.getDirectoryHandle(mo,{create:false});return d;}catch(e){return null;}}
-async function getYearDir(year){try{return await STATE.rootDir.getDirectoryHandle(String(year),{create:false});}catch(e){return null;}}
-
-async function readAnnualYearAWBs(year,month){
-  const yearDir=await getYearDir(year);if(!yearDir)return[];
-  const dirs=[yearDir];for(const n of['ANUAL','Anual','anual','CONSOLIDADO','Consolidado','consolidado']){try{dirs.push(await yearDir.getDirectoryHandle(n,{create:false}));}catch(e){}}
-  const all=[];for(const dir of dirs)all.push(...await readDirAWBs(dir,year));
-  const seen=new Set();return all.filter(a=>{const recMonth=new Date(a.data+'T12:00:00').getMonth()+1;if(recMonth!==month)return false;const key=[a.awb,a.data,a.filial,a.source,a.valor_frete].join('|');if(seen.has(key))return false;seen.add(key);return true;});
-}
-
-// loadPeriodData — agora retorna {cur, prev, sc}
-async function loadPeriodData(curYear,prevYear,month){
-  const mo=padM(month);
-  const curDir=await getMonthDir(curYear,mo);const prevDir=await getMonthDir(prevYear,mo);
-  const allCur=curDir?await readDirAWBs(curDir,curYear):[];
-  const prev=prevDir?await readDirAWBs(prevDir,prevYear):await readAnnualYearAWBs(prevYear,month);
-  // Separar SC do cur
-  const cur=allCur.filter(a=>a.source!=='sc');
-  const sc=allCur.filter(a=>a.source==='sc');
-  // Detectar SC que migraram (AWB presente em cur E em sc)
-  const curAWBSet=new Set(cur.map(a=>a.awb));
-  sc.forEach(a=>{a.migrated=curAWBSet.has(a.awb);});
-  return{cur,prev,sc};
-}
-
-// ══════════════════════════════════════════════════════════
-//  PARSE XLS
-// ══════════════════════════════════════════════════════════
-async function readDirAWBs(dirHandle,year){
-  const all=[];
-  for await(const[name,handle]of dirHandle.entries()){
-    if(handle.kind==='file'){const info=classifyFile(name);if(!info)continue;const recs=await parseXLS(handle,info.filial,info.source,year);all.push(...recs);}
-    else if(handle.kind==='directory'){for await(const[subName,subHandle]of handle.entries()){if(subHandle.kind!=='file')continue;const info=classifyFile(subName);if(!info)continue;const recs=await parseXLS(subHandle,info.filial,info.source,year);all.push(...recs);}}
-  }
-  return all;
-}
-
-function pNum(v){return parseFloat(String(v||'').replace(',','.'))||0;}
-function normModal(v){const s=String(v||'').trim().toUpperCase();if(!s)return'N/D';if(s==='A'||s.includes('AER'))return'Aéreo';if(s==='R'||s.includes('ROD'))return'Rodoviário';return s;}
-function modalClass(v){const s=String(v||'N/D').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();if(s.includes('aereo'))return'aereo';if(s.includes('rodoviario'))return'rodoviario';return'nd';}
-
-async function parseXLS(handle,filial,source,year){
-  try{
-    const buf=await(await handle.getFile()).arrayBuffer();
-    const wb=XLSX.read(buf,{type:'array',cellDates:true});
-    const ws=wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
-    let hi=0;for(let i=0;i<Math.min(8,rows.length);i++){if(rows[i].some(c=>/AWB/i.test(String(c)))){hi=i;break;}}
-    // Fallback: se não encontrou AWB, procura Data/Hora no título e começa na linha seguinte
-    if(hi===0&&source==='sc'){for(let i=0;i<Math.min(10,rows.length);i++){if(rows[i].some(c=>/Remetente|Data|Modal/i.test(String(c)))){hi=i;break;}}}
-    const hdr=rows[hi].map(h=>String(h).trim());
-    const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-    const normHdr=hdr.map(norm);
-    const ci=(...ns)=>{for(const n of ns){const nk=norm(n);const exact=normHdr.findIndex(h=>h===nk);if(exact>=0)return exact;}for(const n of ns){const nk=norm(n);const partial=normHdr.findIndex(h=>h.includes(nk));if(partial>=0)return partial;}return -1;};
-    const I={
-      awb:ci('Nro. AWB','Numero AWB','Nr. AWB','Num. AWB','AWB','Nro','Nr.','Numero'),
-      data:ci('Data Emissão','Data Emissao','Dt. Emissão','Dt. Emissao','Dt Emissao','Data de Emissão','Emitido','Emissão','Data','Dt.'),
-      rem:ci('Remetente','Nome Remetente','Razão Social Rem','Razao Social Rem','Remet'),
-      dest:ci('Destinatário','Destinatario','Nome Destinatário','Razão Social Dest','Razao Social Dest','Dest'),
-      cid:ci('Cidade Destino','Cidade Dest','Municipio','Município','Cidade'),
-      uf:ci('UF Destino','UF Dest','Estado Destino','Estado','UF'),
-      vol:ci('Volumes','Qtd Volumes','Qtd. Volumes','Quantidade','Volume','Vol','Qtd'),
-      peso:ci('Peso Real','Peso Bruto','Peso Kg','Peso (kg)','Peso'),
-      merc:ci('Valor Mercantil','Valor da Mercadoria','Vl Mercantil','Vlr Mercantil','Vl. Merc.','Mercantil','Merc'),
-      fret:ci('Valor do Frete','Valor Frete Total','Valor Frete','Vl. do Frete','Vl Frete','Vlr Frete','Vl. Frete','Total Frete','Frete'),
-      tipo:ci('Tipo de Frete','Tipo Frete','Tp. Frete','Tp Frete','Frete Tipo'),
-      modal:ci('Modal de Transporte','Modalidade Transporte','Modalidade','Modal'),
-      ramo:ci('Ramo de Atividade','Ramo Atividade','Segmento Atividade','Ramo','Segmento'),
-      cnpjRem:ci('CNPJ Remetente','CNPJ/CPF Remetente','CNPJ Rem','CNPJ do Remetente','CNPJ Remet.'),
-      cnpjDest:ci('CNPJ Destinatário','CNPJ Destinatario','CNPJ/CPF Destinatário','CNPJ/CPF Destinatario','CNPJ Dest'),
-      cnpj:ci('CNPJ Remetente','CNPJ/CPF','C.N.P.J.','C.N.P.J','CNPJ','Cnpj'),
-    };
-    if(I.data<0){for(let col=0;col<hdr.length;col++){const sample=rows[hi+1]?.[col];if(!sample&&sample!==0)continue;if(sample instanceof Date){I.data=col;break;}if(typeof sample==='number'&&sample>40000&&sample<55000){I.data=col;break;}if(typeof sample==='string'&&/\d{2}\/\d{2}\/\d{4}/.test(sample)){I.data=col;break;}if(typeof sample==='string'&&/\d{4}-\d{2}-\d{2}/.test(sample)){I.data=col;break;}}}
-    const recs=[];
-    for(let i=hi+1;i<rows.length;i++){
-      const r=rows[i];const awbVal=r[I.awb];if(!awbVal&&awbVal!==0)continue;
-      let dt=I.data>=0?(r[I.data]??''):'';
-      if(dt instanceof Date){const y=dt.getFullYear(),m=String(dt.getMonth()+1).padStart(2,'0'),d=String(dt.getDate()).padStart(2,'0');dt=`${y}-${m}-${d}`;}
-      else if(typeof dt==='number'&&dt>0){try{const msUtc=Math.round((dt-25569)*86400*1000);const jsDate=new Date(msUtc);if(!isNaN(jsDate.getTime())){const y=jsDate.getUTCFullYear(),m=String(jsDate.getUTCMonth()+1).padStart(2,'0'),d=String(jsDate.getUTCDate()).padStart(2,'0');dt=`${y}-${m}-${d}`;}else continue;}catch(e){continue;}}
-      else{dt=String(dt).trim().split(' ')[0].split('T')[0];if(!dt)continue;if(dt.includes('/')){const p=dt.split('/').map(v=>v.trim());if(p.length===3){let[a,b,c]=p;a=a.padStart(2,'0');b=b.padStart(2,'0');if(c.length===2)c='20'+c;dt=`${c}-${b}-${a}`;}}const tmp=new Date(dt+'T12:00:00');if(isNaN(tmp.getTime()))continue;dt=tmp.toISOString().slice(0,10);}
-      const cnpjRem=I.cnpjRem>=0?(String(r[I.cnpjRem]||'').replace(/\D/g,'').replace(/^0+/,'')||''):(I.cnpj>=0?(String(r[I.cnpj]||'').replace(/\D/g,'').replace(/^0+/,'')||''):'');
-      const cnpjDest=I.cnpjDest>=0?(String(r[I.cnpjDest]||'').replace(/\D/g,'').replace(/^0+/,'')||''):'';
-      recs.push({awb:String(awbVal).trim(),data:dt,filial,source,year,remetente:String(r[I.rem]||'').trim().substring(0,45),destinatario:String(r[I.dest]||'').substring(0,45),cidade:String(r[I.cid]||''),uf:String(r[I.uf]||''),volumes:parseInt(r[I.vol])||0,peso:pNum(r[I.peso]),valor_mercantil:pNum(r[I.merc]),valor_frete:pNum(r[I.fret]),tipo_frete:String(r[I.tipo]||''),modal:normModal(r[I.modal]),ramo:String(r[I.ramo]||'').substring(0,40),cnpj:cnpjRem,cnpj_remetente:cnpjRem,cnpj_destinatario:cnpjDest,periodo:STATE.periods[STATE.curIdx]||''});
-    }
-    return recs;
-  }catch(e){return[];}
-}
-
-// ══════════════════════════════════════════════════════════
-//  AGREGAÇÕES — inclui SC
+//  STATS & HELPERS
 // ══════════════════════════════════════════════════════════
 function stats(awbs,filial){
   const r=filial?awbs.filter(a=>a.filial===filial):awbs;
@@ -1188,7 +934,6 @@ function scStats(sc,filial){
   return{total,awbs:r.length,migrado,aRecuperar:total-migrado,awbsMigrado:r.filter(a=>a.migrated).length};
 }
 
-// dmap — inclui SC
 function dmap(awbs,filial,sc){
   const map={};
   (filial?awbs.filter(a=>a.filial===filial):awbs).forEach(a=>{if(!map[a.data])map[a.data]={carteira:0,extra:0,total:0,volumes:0,awbs:0};map[a.data][a.source]=(map[a.data][a.source]||0)+a.valor_frete;map[a.data].total+=a.valor_frete;map[a.data].volumes+=a.volumes;map[a.data].awbs++;});
@@ -1202,10 +947,11 @@ function dmap(awbs,filial,sc){
 // ══════════════════════════════════════════════════════════
 let _data=null,_wdC=null,_wdP=null,_curY=null,_prevY=null,_mo=null;
 function renderCurrentPane(data,wdCur,wdPrev,curYear,prevYear,month){_data=data;_wdC=wdCur;_wdP=wdPrev;_curY=curYear;_prevY=prevYear;_mo=month;const pane=document.querySelector('.pane.active')?.id?.replace('pane-','')||'overview';renderPane(pane);}
+
 function renderPane(name){if(!_data)return;if(name==='overview')renderOverview();else if(name.startsWith('filial_'))renderFilial(name.replace('filial_',''));else if(name==='awb')initAWB();else if(name==='neg')renderNeg();else if(name==='intel')renderIntel();else if(name==='comissao')renderComissao();}
 
 // ══════════════════════════════════════════════════════════
-//  OVERVIEW
+//  RENDER OVERVIEW
 // ══════════════════════════════════════════════════════════
 function renderOverview(){
   const{cur,prev,sc}=_data;
@@ -1213,11 +959,11 @@ function renderOverview(){
   const scAll=scStats(sc,null);
   const filialStats=STATE.filiais.map(f=>({filial:f,cur:stats(cur,f),prev:stats(prev,f),sc:scStats(sc,f),dmCur:dmap(cur,f,sc)}));
   const today=new Date().toISOString().split('T')[0];
-  const elapsedDays=_wdC.filter(d=>d<=today).length;
+  const elapsedDays=_wdC.filter(d=>d<today).length; // Corrigido para d < today
   const proj=projection(sCurAll.total,_wdC);const pctVs=proRata(sCurAll.total,sPrevAll.total,_wdC,_wdP);const gap=proj-sPrevAll.total;
 
   if($('wd-cur-year'))$('wd-cur-year').textContent=_curY;if($('wd-prev-year'))$('wd-prev-year').textContent=_prevY;if($('wd-prev-year2'))$('wd-prev-year2').textContent=_prevY;
-  if($('wd-cur-total'))$('wd-cur-total').textContent=`${_wdC.length} dias`;if($('wd-done'))$('wd-done').textContent=`${elapsedDays} dias`;if($('wd-left'))$('wd-left').textContent=`${_wdC.filter(d=>d>today).length} dias`;if($('wd-prev-total'))$('wd-prev-total').textContent=`${_wdP.length} dias`;if($('wd-prev-avg'))$('wd-prev-avg').textContent=R$(_wdP.length>0?sPrevAll.total/_wdP.length:0);
+  if($('wd-cur-total'))$('wd-cur-total').textContent=`${_wdC.length} dias`;if($('wd-done'))$('wd-done').textContent=`${elapsedDays} dias`;if($('wd-left'))$('wd-left').textContent=`${_wdC.filter(d=>d>=today).length} dias`;if($('wd-prev-total'))$('wd-prev-total').textContent=`${_wdP.length} dias`;if($('wd-prev-avg'))$('wd-prev-avg').textContent=R$(_wdP.length>0?sPrevAll.total/_wdP.length:0);
   if($('ov-period'))$('ov-period').textContent=`${MONTHS[_mo]} ${_curY}`;if($('ov-note'))$('ov-note').textContent=`${cur.length+prev.length} AWBs comissionados · ${scAll.awbs} SC`;
 
   // SC banner overview
@@ -1246,7 +992,9 @@ function renderOvCharts(cur,prev,sc,filialStats,proj,totPrev){
   const totals=filialStats.map(({cur:fCur})=>fCur.total);const totSp=totals.reduce((s,v)=>s+v,0);
   dch('chOvSp');if($('ch-ov-split'))CHARTS.chOvSp=mkChart('ch-ov-split','bar',{labels:filialStats.map(f=>f.filial),datasets:[{data:totals,backgroundColor:filialStats.map((_,i)=>colors[i%colors.length].bar),borderRadius:4,borderSkipped:false}]},{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+R$(c.raw)+' ('+(c.raw/(totSp||1)*100).toFixed(1)+'%)'}}},scales:{x:{grid:{color:'rgba(30,51,82,.5)'},ticks:{color:'#3d5270',font:{size:10},callback:v=>'R$'+(v/1000).toFixed(0)+'k'}},y:{grid:{display:false},ticks:{color:'#7c93b0',font:{size:12}}}}});
   const today=new Date().toISOString().split('T')[0];const dmAllCur=dmap(cur,null,null);let run=0,days=0;
-  const projLine=_wdC.map(d=>{const t=dmAllCur[d]?.total||0;if(d<=today){run+=t;days++;return days>0?Math.round(run/days*_wdC.length):null;}return null;});
+  const projLine=_wdC.map(d=>{const t=dmAllCur[d]?.total||0;if(d<today){ // Corrigido para d < today
+    run+=t;days++;return days>0?Math.round(run/days*_wdC.length):null;
+  }return null;});
   dch('chOvPr');if($('ch-ov-proj'))CHARTS.chOvPr=mkChart('ch-ov-proj','line',{labels,datasets:[{label:'Projeção',data:projLine,borderColor:'var(--success)',backgroundColor:'rgba(16,185,129,.08)',fill:true,tension:.3,pointRadius:0},{label:`Meta ${_prevY}`,data:new Array(_wdC.length).fill(totPrev),borderColor:'rgba(249,115,22,.5)',borderDash:[6,4],backgroundColor:'transparent',pointRadius:0,borderWidth:1.5}]},co({}));
   filialStats.slice(0,3).forEach(({filial},i)=>{const id=`ch-ov-r${i}`;let card=$(id);if(!card){const container=$('ov-ramos-charts');if(container){const div=document.createElement('div');div.className='chart-card';div.innerHTML=`<div class="chart-ttl" id="ch-ov-r${i}-ttl">Top Ramos ${filial}</div><canvas id="${id}" height="120"></canvas>`;container.appendChild(div);card=$(id);}}const ttlEl=$(`ch-ov-r${i}-ttl`);if(ttlEl)ttlEl.textContent=`Top Ramos ${filial}`;if(card)ramos(id,`chR${i}`,filial,colors[i%colors.length].bar,cur);});
   let tfCard=$('ch-ov-tipo');if(!tfCard){const container=$('ov-tipo-charts');if(container){const div=document.createElement('div');div.style.cssText='margin-bottom:20px';div.innerHTML=`<div class="chart-card"><div class="chart-ttl">Tipo de Frete — Consolidado</div><div style="height:120px"><canvas id="ch-ov-tipo"></canvas></div></div>`;container.appendChild(div);tfCard=$('ch-ov-tipo');}}if(tfCard)tipoFreteBar('ch-ov-tipo','chOvTF',null,cur);
@@ -1283,10 +1031,10 @@ function renderFilial(filial){
   const{cur,prev,sc}=_data;
   const nodata=$(`${pfx}-nodata`);const dataEl=$(`${pfx}-data`);const has=cur.some(a=>a.filial===filial)||( sc&&sc.some(a=>a.filial===filial));
   if(nodata)nodata.style.display=has?'none':'block';if(dataEl)dataEl.style.display=has?'block':'none';if(!has)return;
-  const sCur=stats(cur,filial);const sPrev=stats(prev,filial);const scF=scStats(sc,filial);
-  const dmCur=dmap(cur,filial,sc);const dmPrev=dmap(prev,filial,null);
-  const today=new Date().toISOString().split('T')[0];const elapsedDays=_wdC.filter(d=>d<=today).length;
-  const proj=elapsedDays>0?(sCur.total/elapsedDays)*_wdC.length:0;const med=elapsedDays>0?sCur.total/elapsedDays:0;
+  const sCur=stats(cur,filial);const sPrev=stats(prev,filial);const scF=scStats(sc,filial);const dmCur=dmap(cur,filial,sc);const dmPrev=dmap(prev,filial,null);
+  const today=new Date().toISOString().split('T')[0];
+  const elapsedDays=_wdC.filter(d=>d<today).length; // Corrigido para d < today
+  const proj=projection(sCur.total,_wdC);const med=elapsedDays>0?sCur.total/elapsedDays:0;
   const pVal=proRata(sCur.total,sPrev.total,_wdC,_wdP);const projPct=sPrev.total>0?(proj/sPrev.total*100):0;const prog=sPrev.total>0?Math.min(sCur.total/sPrev.total*100,100):0;
 
   if($(`lbl-${pfx}`))$(`lbl-${pfx}`).textContent=`${MONTHS[_mo]} ${_curY}`;
@@ -1373,729 +1121,41 @@ function openSCDay(dateStr,filial){
   const tbody=$('body-sc-day');tbody.innerHTML='';
   _scDayData.sort((a,b)=>b.valor_frete-a.valor_frete).forEach(a=>{
     const tr=document.createElement('tr');const isMig=a.migrated;
-    tr.innerHTML=`<td class="mono" style="font-size:11px">${a.awb}</td><td>${new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR')}</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${a.remetente}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${a.destinatario}</td><td>${a.cidade}/${a.uf}</td><td><span class="tag ${(a.tipo_frete||'nd').toLowerCase()}">${a.tipo_frete||'N/D'}</span></td><td><span class="tag ${modalClass(a.modal)}">${a.modal}</span></td><td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--sc)">${R$(a.valor_frete)}</td><td>${isMig?'<span style="background:rgba(16,185,129,.15);color:var(--success);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700">✓ Migrou</span>':'<span style="background:var(--sc-bg);color:var(--sc);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700">⚠ Pendente</span>'}` ;
+    tr.innerHTML=`<td class="mono" style="font-size:11px">${a.awb}</td><td>${new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR')}</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${a.remetente}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${a.destinatario}</td><td>${a.cidade}/${a.uf}</td><td><span class="tag ${(a.tipo_frete||'nd').toLowerCase()}">${a.tipo_frete||'N/D'}</span></td><td><span class="tag ${modalClass(a.modal)}">${a.modal}</span></td><td style="text-align:right;font-family:var(--mono);font-weight:700">${R$(a.valor_frete)}</td><td style="text-align:center">${isMig?'<span style="color:var(--success)">✅</span>':'<span style="color:var(--warning)">⏳</span>'}</td>`;
     tbody.appendChild(tr);
   });
-  $('modal-sc-day').style.display='flex';document.body.style.overflow='hidden';
+  $('modal-sc-day').style.display='flex';
 }
-
-function exportSCDayCSV(){let csv='AWB,Data,Remetente,Destinatário,Cidade,UF,Tipo Frete,Modal,Frete R$,Status\n';_scDayData.forEach(a=>{csv+=`"${a.awb}","${a.data}","${a.remetente}","${a.destinatario}","${a.cidade}","${a.uf}","${a.tipo_frete}","${a.modal}",${a.valor_frete},"${a.migrated?'Migrou':'Pendente'}"\n`;});const el=document.createElement('a');el.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));el.download=`SC_dia.csv`;el.click();}
-
-// Modal Ver todos SC da filial
-function openSCList(filial){
-  const{sc}=_data;if(!sc||!sc.length){toast('Sem dados SC para esta filial.','ok');return;}
-  const scF=sc.filter(a=>a.filial===filial).sort((a,b)=>b.valor_frete-a.valor_frete);if(!scF.length){toast('Sem SC neste mês para '+filial,'ok');return;}
-  _scDayData=scF;
-  const totalSC=scF.reduce((s,a)=>s+a.valor_frete,0);const migCount=scF.filter(a=>a.migrated).length;
-  $('sc-day-title').textContent=`SC Completo — ${filial} · ${MONTHS[_mo]} ${_curY}`;
-  $('sc-day-sub').textContent=`${scF.length} AWBs · Total ${R$(totalSC)} · ${migCount} migrado(s) · ${scF.length-migCount} pendentes`;
-  $('sc-day-count').textContent=`${R$(scF.filter(a=>!a.migrated).reduce((s,a)=>s+a.valor_frete,0))} ainda aguardando conversão para comissão este mês`;
-  const tbody=$('body-sc-day');tbody.innerHTML='';
-  scF.forEach(a=>{const tr=document.createElement('tr');const isMig=a.migrated;tr.innerHTML=`<td class="mono" style="font-size:11px">${a.awb}</td><td>${new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR')}</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${a.remetente}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${a.destinatario}</td><td>${a.cidade}/${a.uf}</td><td><span class="tag ${(a.tipo_frete||'nd').toLowerCase()}">${a.tipo_frete||'N/D'}</span></td><td><span class="tag ${modalClass(a.modal)}">${a.modal}</span></td><td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--sc)">${R$(a.valor_frete)}</td><td>${isMig?'<span style="background:rgba(16,185,129,.15);color:var(--success);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700">✓ Migrou</span>':'<span style="background:var(--sc-bg);color:var(--sc);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700">⚠ Pendente</span>'}`;tbody.appendChild(tr);});
-  $('modal-sc-day').style.display='flex';document.body.style.overflow='hidden';
-}
-
-function exportSCCSV(filial){const{sc}=_data;if(!sc)return;const scF=sc.filter(a=>a.filial===filial);let csv='AWB,Data,Filial,Remetente,Destinatário,Cidade,UF,Tipo Frete,Modal,Frete R$,Status\n';scF.forEach(a=>{csv+=`"${a.awb}","${a.data}","${a.filial}","${a.remetente}","${a.destinatario}","${a.cidade}","${a.uf}","${a.tipo_frete}","${a.modal}",${a.valor_frete},"${a.migrated?'Migrou':'Pendente'}"\n`;});const el=document.createElement('a');el.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));el.download=`SC_${filial}_${_curY}-${padM(_mo)}.csv`;el.click();}
-
-// ══════════════════════════════════════════════════════════
-//  INTELIGÊNCIA ANUAL — inclui SC
-// ══════════════════════════════════════════════════════════
-function renderIntel(){
-  const proj=STATE.projection;const hasData=proj&&(proj.consolidated||Object.keys(proj.byFilial||{}).length>0);
-  const emptyEl=$('intel-empty');const contentEl=$('intel-content');
-  if(!hasData){if(emptyEl)emptyEl.style.display='block';if(contentEl)contentEl.style.display='none';return;}
-  if(emptyEl)emptyEl.style.display='none';if(contentEl)contentEl.style.display='block';
-  const cons=proj.consolidated;
-  if(cons){
-    set('intel-proj-total',R$(cons.projectedTotal));set('intel-realizado',R$(cons.realizadoAteHoje));set('intel-dias-real',Object.values(proj.byFilial).reduce((s,v)=>Math.max(s,v.diasRealizados||0),0)+' dias úteis');
-    // SC total anual
-    const scAnual=Object.values(proj.byFilial).reduce((s,v)=>s+(v.scPotencial||0),0);if($('intel-sc-total'))set('intel-sc-total',scAnual>0?R$(scAnual):'—');
-    const confLabel={conservador:'🟡 Conservador',realista:'🟢 Realista',agressivo:'🔴 Agressivo',historico:'⚪ Referência Histórica'};const confColor={conservador:'rgba(245,158,11,.18)',realista:'rgba(16,185,129,.18)',agressivo:'rgba(239,68,68,.18)',historico:'rgba(100,116,139,.18)'};const confText={conservador:'var(--warning)',realista:'var(--success)',agressivo:'var(--danger)',historico:'var(--text2)'};
-    const cEl=$('intel-confidence-badge');if(cEl){cEl.textContent=confLabel[cons.confidence]||cons.confidence;cEl.style.background=confColor[cons.confidence]||confColor.realista;cEl.style.color=confText[cons.confidence]||confText.realista;}
-    const subEl=$('intel-proj-sub');if(subEl){const curY=decodePeriod(STATE.periods[0]).year;subEl.textContent=`Estimativa para o ano completo de ${curY}`;}
-  }
-  const grid=$('intel-filiais-grid');
-  if(grid){
-    grid.innerHTML='';const colors=FILIAL_COLORS;
-    STATE.filiais.forEach((filial,i)=>{
-      const fp=proj.byFilial[filial];if(!fp)return;const col=colors[i%colors.length];const hist=STATE.history[filial];
-      const histRows=fp.vsBestYear?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11px;color:var(--text2)">🏆 Melhor ano (${hist?.bestYear?.year||'—'})</span><span style="font-family:var(--mono);font-size:12px">${R$(fp.vsBestYear)}</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span style="font-size:11px;color:var(--text2)">Δ vs melhor ano</span><span class="badge ${fp.vsBestYearPct>=0?'up':'dn'}">${pct(fp.vsBestYearPct)}</span></div>`:'';
-      const scRow=fp.scPotencial>0?`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--sc-border);background:var(--sc-bg);border-radius:6px;padding:8px 12px;margin-top:6px"><span style="font-size:11px;color:var(--sc);font-weight:700">⚠ SC a recuperar este mês</span><span style="font-family:var(--mono);font-size:13px;font-weight:800;color:var(--sc)">${R$(fp.scPotencial)}</span></div>`:'';
-      grid.innerHTML+=`<div class="chart-card" style="border-top:3px solid ${col.bar};padding:18px 20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="font-weight:800;font-size:14px">${filial}</div><div style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:700;background:${fp.confidence==='agressivo'?'rgba(239,68,68,.15)':fp.confidence==='conservador'?'rgba(245,158,11,.15)':'rgba(16,185,129,.15)'};color:${fp.confidence==='agressivo'?'var(--danger)':fp.confidence==='conservador'?'var(--warning)':'var(--success)'}">${fp.confidence}</div></div>
-        <div style="font-size:26px;font-weight:800;font-family:var(--mono);color:${col.color};margin-bottom:4px">${R$(fp.projectedTotal)}</div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Projeção para o ano completo</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--border)"><span style="font-size:11px;color:var(--text2)">✅ Realizado até ontem</span><span style="font-family:var(--mono);font-size:12px;color:var(--success)">${R$(fp.realizadoAteHoje)}</span></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0"><span style="font-size:11px;color:var(--text2)">⚡ Média diária</span><span style="font-family:var(--mono);font-size:12px">${R$(fp.dailyRate)}/dia</span></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0"><span style="font-size:11px;color:var(--text2)">📅 Dias realizados</span><span style="font-family:var(--mono);font-size:12px">${fp.diasRealizados} úteis</span></div>
-        ${histRows}${scRow}
-      </div>`;
-    });
-  }
-
-  // Seção SC anual
-  renderIntelSCSection();
-
-  const histSection=$('intel-hist-section');const histGrid=$('intel-hist-grid');const hasHistory=Object.keys(STATE.history||{}).length>0;
-  if(histSection)histSection.style.display=hasHistory?'block':'none';
-  if(histGrid&&hasHistory){histGrid.innerHTML='';STATE.filiais.forEach((filial,i)=>{const h=STATE.history[filial];if(!h)return;const col=FILIAL_COLORS[i%FILIAL_COLORS.length];const topRows=h.topMonths.map((m,idx)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px solid var(--border)"><span style="font-size:11px;color:var(--text2)">${idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':'  '} ${MONTHS[m.month]} ${m.year}</span><span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${col.color}">${R$(m.total)}</span></div>`).join('');histGrid.innerHTML+=`<div class="chart-card" style="border-top:3px solid ${col.bar}"><div style="font-weight:800;font-size:13px;margin-bottom:12px">${filial} — Top Meses Históricos</div><div style="display:flex;justify-content:space-between;padding:4px 0;margin-bottom:4px"><span style="font-size:11px;color:var(--text2)">Melhor ano histórico</span><span style="font-family:var(--mono);font-size:12px;font-weight:700">${h.bestYear?h.bestYear.year+' · '+R$(h.bestYear.total):'—'}</span></div><div style="display:flex;justify-content:space-between;padding:4px 0;margin-bottom:8px"><span style="font-size:11px;color:var(--text2)">Média mensal histórica</span><span style="font-family:var(--mono);font-size:12px">${R$(h.avgMonthly)}</span></div>${topRows}</div>`;});}
-
-  const seasonSection=$('intel-season-section');const hasSeasonData=STATE.filiais.some(f=>STATE.history[f]?.seasonality);if(seasonSection)seasonSection.style.display=hasSeasonData?'block':'none';
-  if(hasSeasonData&&$('ch-intel-season')){dch('chIntelSeason');const labels=MONTHS.slice(1);const datasets=STATE.filiais.map((filial,i)=>{const h=STATE.history[filial];if(!h)return null;const col=FILIAL_COLORS[i%FILIAL_COLORS.length];return{label:filial,data:Array.from({length:12},(_,mo)=>{const v=h.seasonality[mo+1];return v!==undefined?Math.round(v*100)/100:null;}),borderColor:col.bar,backgroundColor:'transparent',tension:0.35,pointRadius:4,borderWidth:2};}).filter(Boolean);datasets.push({label:'Média (1.0)',data:new Array(12).fill(1),borderColor:'rgba(100,116,139,.4)',borderDash:[6,4],backgroundColor:'transparent',pointRadius:0,borderWidth:1.5});CHARTS.chIntelSeason=mkChart('ch-intel-season','line',{labels,datasets},{responsive:true,plugins:{legend:{labels:{color:'#7c93b0',font:{size:11}}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.raw?.toFixed(2)??'—'}×`}}},scales:{x:{grid:{color:'rgba(30,51,82,.5)'},ticks:{color:'#3d5270',font:{size:10}}},y:{grid:{color:'rgba(30,51,82,.5)'},ticks:{color:'#3d5270',font:{size:10},callback:v=>v.toFixed(1)+'×'},min:0}}});}
-  renderIntelFreteAnalysis();renderIntelTopClientes();
-}
-
-// Seção SC na análise anual
-function renderIntelSCSection(){
-  const section=$('intel-sc-section');const grid=$('intel-sc-grid');if(!section||!grid)return;
-  // Coleta SC de todos os períodos do ano atual
-  const scByFilial={};STATE.periods.forEach(p=>{const d=STATE.cache[p];if(!d||!d.sc)return;const{month}=decodePeriod(p);d.sc.forEach(a=>{if(!scByFilial[a.filial])scByFilial[a.filial]={byDay:{},total:0,awbs:0,migrado:0,aRecuperar:0,months:new Set()};scByFilial[a.filial].total+=a.valor_frete;scByFilial[a.filial].awbs++;if(a.migrated)scByFilial[a.filial].migrado+=a.valor_frete;else scByFilial[a.filial].aRecuperar+=a.valor_frete;scByFilial[a.filial].months.add(month);if(!scByFilial[a.filial].byDay[a.data])scByFilial[a.filial].byDay[a.data]={total:0,awbs:0,new:0};scByFilial[a.filial].byDay[a.data].total+=a.valor_frete;scByFilial[a.filial].byDay[a.data].awbs++;if(!a.migrated)scByFilial[a.filial].byDay[a.data].new++;});});
-  const hasAnySC=Object.keys(scByFilial).length>0;section.style.display=hasAnySC?'block':'none';if(!hasAnySC)return;
-  grid.innerHTML='';
-  Object.entries(scByFilial).forEach(([filial,s])=>{
-    const fi=STATE.filiais.indexOf(filial);const col=FILIAL_COLORS[fi%FILIAL_COLORS.length];const pctMig=s.total>0?(s.migrado/s.total*100):0;const pctPend=100-pctMig;
-    const topDays=Object.entries(s.byDay).sort((a,b)=>b[1].new-a[1].new).slice(0,5);
-    grid.innerHTML+=`<div class="chart-card" style="border-top:3px solid var(--sc)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="font-weight:800;font-size:13px;color:var(--sc)">${filial} — SC Acumulado</div><span class="tag sc">${MONTHS[_mo]} ${_curY}</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-        <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">Total SC</div><div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--sc)">${R$(s.total)}</div><div style="font-size:10px;color:var(--text3)">${s.awbs} AWBs</div></div>
-        <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">✓ Migrou</div><div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--success)">${R$(s.migrado)}</div><div style="font-size:10px;color:var(--text3)">${pctMig.toFixed(1)}%</div></div>
-        <div style="background:var(--sc-bg);border:1px solid var(--sc-border);border-radius:8px;padding:10px"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">⚠ A recuperar</div><div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--warning)">${R$(s.aRecuperar)}</div><div style="font-size:10px;color:var(--text3)">${pctPend.toFixed(1)}%</div></div>
-      </div>
-      <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text3);margin-bottom:5px">Conversão para comissão</div><div style="height:8px;background:var(--border);border-radius:6px;overflow:hidden;display:flex"><div style="height:100%;width:${pctMig.toFixed(1)}%;background:var(--success);border-radius:6px 0 0 6px;transition:width .6s"></div><div style="height:100%;width:${pctPend.toFixed(1)}%;background:rgba(167,139,250,.5)"></div></div><div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--text3)"><span>✓ Comissionado ${pctMig.toFixed(1)}%</span><span>⚠ Pendente ${pctPend.toFixed(1)}%</span></div></div>
-      ${topDays.length?`<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">Dias com mais SC novos</div>${topDays.map(([dt,v])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid rgba(30,51,82,.4);font-size:11px"><span style="color:var(--text2)">${new Date(dt+'T12:00:00').toLocaleDateString('pt-BR')}</span><span>${v.new} novos · ${R$(v.total)}</span></div>`).join('')}`:''}
-    </div>`;
-  });
+function closeSCDay(){$('modal-sc-day').style.display='none';}
+function exportSCCSV(filial){
+  const{sc}=_data;if(!sc||!sc.length)return;
+  const f=sc.filter(a=>a.filial===filial);if(!f.length)return;
+  let csv='AWB;Data;Remetente;Destinatario;Cidade;UF;Tipo Frete;Modal;Valor;Migrado\n';
+  f.forEach(a=>csv+=`${a.awb};${a.data};${a.remetente};${a.destinatario};${a.cidade};${a.uf};${a.tipo_frete};${a.modal};${a.valor_frete};${a.migrated?'Sim':'Não'}\n`);
+  const blob=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`SC_${filial}_${_curY}_${padM(_mo)}.csv`;a.click();
 }
 
 // ══════════════════════════════════════════════════════════
-//  ANÁLISE POR TIPO DE FRETE
+//  OUTROS HELPERS (set, bb, dch, mkChart, co, srt, etc.)
 // ══════════════════════════════════════════════════════════
-function renderIntelFreteAnalysis(){
-  const grid=$('intel-frete-grid');if(!grid)return;grid.innerHTML='';
-  STATE.filiais.forEach((filial,fi)=>{
-    const col=FILIAL_COLORS[fi%FILIAL_COLORS.length];const pfx=filial.toLowerCase();const awbs=[];
-    STATE.periods.forEach(p=>{const d=STATE.cache[p];if(!d)return;d.cur.filter(a=>a.filial===filial).forEach(a=>awbs.push(a));});
-    if(!awbs.length)return;
-    const totCIF=awbs.filter(a=>(a.tipo_frete||'').toUpperCase()==='CIF').reduce((s,a)=>s+a.valor_frete,0);const totFOB=awbs.filter(a=>(a.tipo_frete||'').toUpperCase()==='FOB').reduce((s,a)=>s+a.valor_frete,0);const totAereo=awbs.filter(a=>(a.modal||'').toLowerCase().includes('aér')||(a.modal||'').toLowerCase().includes('aer')).reduce((s,a)=>s+a.valor_frete,0);const totRodo=awbs.filter(a=>(a.modal||'').toLowerCase().includes('rod')).reduce((s,a)=>s+a.valor_frete,0);const totGeral=awbs.reduce((s,a)=>s+a.valor_frete,0);
-    const pctCIF=totGeral>0?(totCIF/totGeral*100):0;const pctFOB=totGeral>0?(totFOB/totGeral*100):0;const pctAereo=totGeral>0?(totAereo/totGeral*100):0;const pctRodo=totGeral>0?(totRodo/totGeral*100):0;
-    const awbsCIF=awbs.filter(a=>(a.tipo_frete||'').toUpperCase()==='CIF').length;const awbsFOB=awbs.filter(a=>(a.tipo_frete||'').toUpperCase()==='FOB').length;const awbsAereo=awbs.filter(a=>(a.modal||'').toLowerCase().includes('aér')||(a.modal||'').toLowerCase().includes('aer')).length;const awbsRodo=awbs.filter(a=>(a.modal||'').toLowerCase().includes('rod')).length;
-    const card=document.createElement('div');card.className='chart-card';card.style.cssText=`border-top:3px solid ${col.bar}`;
-    card.innerHTML=`<div class="chart-ttl" style="margin-bottom:16px"><span style="color:${col.color};font-size:13px;font-weight:800">${filial}</span><span style="font-weight:400;color:var(--text3)">Acumulado ano atual</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">${[{lbl:'CIF',val:totCIF,pctV:pctCIF,awbs:awbsCIF,color:'var(--cyan)'},{lbl:'FOB',val:totFOB,pctV:pctFOB,awbs:awbsFOB,color:'var(--accent)'},{lbl:'Aéreo',val:totAereo,pctV:pctAereo,awbs:awbsAereo,color:'#60a5fa'},{lbl:'Rodoviário',val:totRodo,pctV:pctRodo,awbs:awbsRodo,color:'#fbbf24'}].map(item=>`<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">${item.lbl}</div><div style="font-size:16px;font-weight:800;font-family:var(--mono);color:${item.color};margin-bottom:2px">${R$(item.val)}</div><div style="font-size:11px;color:var(--text3)">${item.pctV.toFixed(1)}% · ${item.awbs} AWBs</div><div style="margin-top:6px;height:4px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;width:${Math.min(item.pctV,100).toFixed(1)}%;background:${item.color};border-radius:4px"></div></div></div>`).join('')}</div><div style="height:140px;position:relative"><canvas id="ch-intel-frete-${pfx}"></canvas></div>`;
-    grid.appendChild(card);
-    requestAnimationFrame(()=>{const ctx=document.getElementById(`ch-intel-frete-${pfx}`);if(!ctx)return;if(ctx._chartInst)ctx._chartInst.destroy();ctx._chartInst=new Chart(ctx,{type:'doughnut',data:{labels:['CIF','FOB','Aéreo','Rodoviário'],datasets:[{data:[totCIF,totFOB,totAereo,totRodo],backgroundColor:['rgba(6,182,212,.7)','rgba(249,115,22,.7)','rgba(96,165,250,.7)','rgba(251,191,36,.7)'],borderColor:['#06b6d4','#f97316','#60a5fa','#fbbf24'],borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{color:'#7c93b0',font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:ctx=>{const t=ctx.dataset.data.reduce((s,v)=>s+v,0);return` ${ctx.label}: ${R$(ctx.raw)} (${t>0?(ctx.raw/t*100).toFixed(1):0}%)`;}}}}}}); });
-  });
+function set(id,val,style){const el=$(id);if(el){el.textContent=val;if(style)el.style.cssText=style;}}
+function bb(id,txt,cls){const el=$(id);if(el){el.textContent=txt;el.className=`badge ${cls}`;}}
+function dch(key){if(CHARTS[key]){CHARTS[key].destroy();delete CHARTS[key];}}
+const CHARTS={};
+function mkChart(id,type,data,options){const ctx=$(id);if(!ctx)return null;return new Chart(ctx,{type,data,options});}
+function co(overrides){return Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,23,42,.9)',titleColor:'#94a3b8',bodyColor:'#f8fafc',padding:10,cornerRadius:8,displayColors:false,callbacks:{label:c=>' '+R$(c.raw)}}},scales:{x:{grid:{color:'rgba(30,51,82,.5)'},ticks:{color:'#7c93b0',font:{size:10}}},y:{grid:{color:'rgba(30,51,82,.5)'},ticks:{color:'#7c93b0',font:{size:10},callback:v=>'R$'+(v/1000).toFixed(0)+'k'}}}},overrides);}
+function modalClass(m){const s=String(m||'').toLowerCase();if(s.includes('aéreo'))return 'aereo';if(s.includes('rodoviário'))return 'rodoviario';return 'nd';}
+function toast(m,t){console.log(m);}
+function srt(tid,col){/* simplificado */}
+function openNovos(dt,filial){/* simplificado */}
+function showPane(id,tab){
+  $$('.pane').forEach(p=>p.classList.remove('active'));
+  $$('.tab').forEach(t=>t.classList.remove('active'));
+  const p=$(`pane-${id}`);if(p)p.classList.add('active');
+  if(tab)tab.classList.add('active');
+  if(id.startsWith('filial_'))renderFilial(id.replace('filial_',''));
+  else if(id==='overview')renderOverview();
 }
-
-// ══════════════════════════════════════════════════════════
-//  TOP CLIENTES ANUAL
-// ══════════════════════════════════════════════════════════
-function renderIntelTopClientes(){
-  const grid=$('intel-clientes-grid');if(!grid)return;grid.innerHTML='';
-  STATE.filiais.forEach((filial,fi)=>{
-    const col=FILIAL_COLORS[fi%FILIAL_COLORS.length];const clientMap={};
-    STATE.periods.forEach(p=>{const d=STATE.cache[p];if(!d)return;d.cur.filter(a=>a.filial===filial).forEach(a=>{const key=a.cnpj||a.remetente||'—';const nome=a.remetente||key;if(!clientMap[key])clientMap[key]={nome,cnpj:a.cnpj||'',total:0,awbs:0};clientMap[key].total+=a.valor_frete;clientMap[key].awbs++;});});
-    const top=Object.values(clientMap).sort((a,b)=>b.total-a.total).slice(0,10);if(!top.length)return;
-    const totalFilial=top.reduce((s,c)=>s+c.total,0);const maxVal=top[0]?.total||1;
-    const card=document.createElement('div');card.className='tbl-card';card.style.cssText=`border-top:3px solid ${col.bar}`;
-    card.innerHTML=`<div class="tbl-top"><div class="tbl-top-ttl" style="color:${col.color}">${filial} — Top 10 Clientes</div><span style="font-size:11px;color:var(--text3);font-family:var(--mono)">Acumulado ano atual</span></div><div class="tbl-wrap"><table><thead><tr><th style="width:28px">#</th><th>Cliente</th><th>CNPJ</th><th style="text-align:right">Frete R$</th><th style="text-align:right">AWBs</th><th style="text-align:right">% do total</th><th style="min-width:80px"></th></tr></thead><tbody>${top.map((c,i)=>{const p=totalFilial>0?(c.total/totalFilial*100):0;const barW=maxVal>0?(c.total/maxVal*100).toFixed(1):0;return`<tr><td style="color:var(--text3);font-family:var(--mono)">${i+1}</td><td style="font-weight:700;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${c.nome}">${c.nome}</td><td style="font-family:var(--mono);font-size:11px;color:var(--text2)">${c.cnpj||'—'}</td><td style="text-align:right;font-family:var(--mono);font-weight:700;color:${col.color}">${R$(c.total)}</td><td style="text-align:right;font-family:var(--mono)">${c.awbs}</td><td style="text-align:right;font-family:var(--mono);color:var(--text2)">${p.toFixed(1)}%</td><td><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${barW}%;background:${col.bar};border-radius:3px"></div></div></td></tr>`;}).join('')}</tbody></table></div>`;
-    grid.appendChild(card);
-  });
-}
-
-// ══════════════════════════════════════════════════════════
-//  AWB SEARCH — inclui SC
-// ══════════════════════════════════════════════════════════
-let awbAll=[],awbPg=1;const PP=50;
-function initAWB(){
-  const all=[];Object.values(STATE.cache).forEach(d=>{all.push(...d.cur,...d.prev,...(d.sc||[]));});
-  if(!all.length&&_data){all.push(..._data.cur,..._data.prev,...(_data.sc||[]));}
-  awbAll=[...all];awbPg=1;updC();renderAWBPg();
-}
-function fAWB(){
-  const q=$('aq').value.trim().toLowerCase();const r=$('ar').value.trim().toLowerCase();const dest=($('adest')?.value||'').trim().toLowerCase();const cidade=($('acidade')?.value||'').trim().toLowerCase();const f=$('af').value,p=$('ap').value,s=$('as').value;const modal=($('amodal')?.value||'');const dt1=($('adt1')?.value||''),dt2=($('adt2')?.value||'');const fmin=parseFloat($('afmin')?.value||0)||0;
-  let base=[];Object.values(STATE.cache).forEach(d=>{base.push(...d.cur,...d.prev,...(d.sc||[]));});if(!base.length&&_data)base.push(..._data.cur,..._data.prev,...(_data.sc||[]));
-  awbAll=base.filter(a=>(!q||a.awb.toLowerCase().includes(q))&&(!r||a.remetente.toLowerCase().includes(r))&&(!dest||a.destinatario.toLowerCase().includes(dest))&&(!cidade||(a.cidade+'/'+a.uf).toLowerCase().includes(cidade))&&(!f||a.filial===f)&&(!p||a.periodo===p||(p&&`${a.year}-${padM(new Date(a.data+'T12:00:00').getMonth()+1)}`===p))&&(!s||a.source===s)&&(!modal||a.modal===modal)&&(!dt1||a.data>=dt1)&&(!dt2||a.data<=dt2)&&(!fmin||a.valor_frete>=fmin));
-  awbPg=1;updC();renderAWBPg();
-}
-function updC(){$('awb-count').textContent=awbAll.length.toLocaleString('pt-BR')+' registros';}
-function renderAWBPg(){
-  const tb=$('body-awb');tb.innerHTML='';const st=(awbPg-1)*PP;
-  awbAll.slice(st,st+PP).forEach(a=>{
-    const tr=document.createElement('tr');const tc=(a.tipo_frete||'').toLowerCase();const{month:am}={month:new Date(a.data+'T12:00:00').getMonth()+1};
-    const isSC=a.source==='sc';
-    tr.style.background=isSC?'rgba(167,139,250,.04)':'';
-    tr.innerHTML=`<td class="mono" style="font-size:11px">${a.awb}</td><td>${new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR')}</td><td><span class="tag" style="background:rgba(249,115,22,.12);color:var(--accent)">${a.filial}</span></td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${a.remetente}</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${a.destinatario}</td><td>${a.cidade}/<strong>${a.uf}</strong></td><td>${a.volumes}</td><td class="mono">${a.peso} kg</td><td>${R$(a.valor_mercantil)}</td><td class="mono" style="font-weight:700;color:${isSC?'var(--sc)':'var(--accent)'}">${R$(a.valor_frete)}</td><td><span class="tag ${tc}">${a.tipo_frete}</span></td><td><span class="tag ${modalClass(a.modal)}">${a.modal||'N/D'}</span></td><td><span class="tag ${a.source}">${a.source}</span></td><td style="color:var(--text3);font-family:var(--mono)">${MONTHS[am].substring(0,3)} ${a.year}</td>`;
-    tb.appendChild(tr);
-  });
-  renderPag('pg-awb',awbAll.length,awbPg,PP,p=>{awbPg=p;renderAWBPg();});
-}
-function cAWB(){['aq','ar','adest','acidade','afmin'].forEach(id=>{const el=$(id);if(el)el.value='';});['af','ap','as','amodal'].forEach(id=>{const el=$(id);if(el)el.value='';});['adt1','adt2'].forEach(id=>{const el=$(id);if(el)el.value='';});fAWB();}
-
-// ══════════════════════════════════════════════════════════
-//  ÍNDICE GLOBAL DE REMETENTES
-// ══════════════════════════════════════════════════════════
-let ALL_REM_DATES={};function normRem(s){return String(s||'').trim().toLowerCase().replace(/\s+/g,' ');}
-function freightPayerInfo(a){const tipo=String(a?.tipo_frete||'').trim().toUpperCase();if(tipo==='FOB'){const nome=String(a?.destinatario||'').trim();const cnpj=String(a?.cnpj_destinatario||'').replace(/\D/g,'').replace(/^0+/,'');return{nome,cnpj,tipo,papel:'Destinatário'};}if(tipo==='CIF'){const nome=String(a?.remetente||'').trim();const cnpj=String(a?.cnpj_remetente||a?.cnpj||'').replace(/\D/g,'').replace(/^0+/,'');return{nome,cnpj,tipo,papel:'Remetente'};}return{nome:'',cnpj:'',tipo,papel:''};}
-function rebuildAllAWBIndex(){ALL_REM_DATES={};Object.values(STATE.cache).forEach(d=>{[...d.cur,...d.prev].forEach(a=>{const payer=freightPayerInfo(a);const k=normRem(payer.nome);if(!k)return;if(!ALL_REM_DATES[k])ALL_REM_DATES[k]=new Set();ALL_REM_DATES[k].add(a.data);});});Object.keys(ALL_REM_DATES).forEach(k=>{ALL_REM_DATES[k]=[...ALL_REM_DATES[k]].sort();});}
-function clientCategory(remNorm,dateStr){const dates=ALL_REM_DATES[remNorm];if(!dates||dates.length===0)return'new';const before=dates.filter(d=>d<dateStr);if(before.length===0)return'new';const lastBefore=before[before.length-1];const diffDays=(new Date(dateStr)-new Date(lastBefore))/86400000;return diffDays>90?'ret':null;}
-
-// ══════════════════════════════════════════════════════════
-//  MODAL CLIENTES NOVOS / RETORNO
-// ══════════════════════════════════════════════════════════
-let _mnAll=[],_mnFilter='all';
-function openNovos(dateStr,filial){
-  if(!Object.keys(ALL_REM_DATES).length)rebuildAllAWBIndex();
-  let dayAWBs=[];Object.values(STATE.cache).forEach(d=>{dayAWBs.push(...d.cur.filter(a=>a.data===dateStr&&a.filial===filial));});const seenAWB=new Set();dayAWBs=dayAWBs.filter(a=>{if(seenAWB.has(a.awb))return false;seenAWB.add(a.awb);return true;});
-  const clientMap={};dayAWBs.forEach(a=>{const payer=freightPayerInfo(a);const k=normRem(payer.nome);if(!k)return;if(!clientMap[k])clientMap[k]={pagador:payer.nome,cnpj:payer.cnpj||'',papel:payer.papel,tipoFrete:payer.tipo||'',filial:a.filial,awbs:[],totalFrete:0,sources:new Set()};clientMap[k].awbs.push(a.awb);clientMap[k].totalFrete+=a.valor_frete;clientMap[k].sources.add(a.source);});
-  _mnAll=Object.entries(clientMap).map(([k,g])=>{const cat=clientCategory(k,dateStr);const dates=ALL_REM_DATES[k]||[];const before=dates.filter(d=>d<dateStr);const lastDate=before.length?before[before.length-1]:null;return{...g,cat,lastDate,normKey:k};}).filter(a=>a.cat!==null);_mnAll.sort((a,b)=>(a.cat==='new'?0:1)-(b.cat==='new'?0:1));
-  $('mn-title').textContent=`Pagadores Novos / Retorno — ${filial} · ${fd(dateStr)}`;const totalClientes=Object.keys(clientMap).length;$('mn-sub').textContent=`${_mnAll.length} pagador(es) novo(s) ou retornando (de ${totalClientes} pagadores no dia, ${dayAWBs.length} NFs)`;
-  _mnFilter='all';renderMN();$('modal-novos').classList.add('open');document.body.style.overflow='hidden';
-}
-function closeMN(){$('modal-novos').classList.remove('open');document.body.style.overflow='';}
-function mnFilter(f){_mnFilter=f;['all','new','ret'].forEach(k=>{const btn=$(`mn-btn-${k}`);btn.style.background=k===f?'var(--accent)':'';btn.style.color=k===f?'#fff':'';});renderMN();}
-function renderMN(){
-  const q=($('mn-search')?.value||'').trim().toLowerCase();const base=_mnFilter==='all'?_mnAll:_mnAll.filter(a=>a.cat===_mnFilter);const list=q?base.filter(a=>(a.pagador||'').toLowerCase().includes(q)||(a.cnpj||'').includes(q)):base;
-  const container=$('body-mn');container.innerHTML='';$('mn-count').textContent=`${list.length} pagador(es) exibido(s)`;$('mn-empty').style.display=list.length?'none':'block';
-  list.forEach((a,i)=>{const isNew=a.cat==='new';const cnpjDisplay=a.cnpj?a.cnpj.replace(/^0+/,'')||a.cnpj:'—';const sourcesStr=[...a.sources].join('+');const lastFmt=a.lastDate?new Date(a.lastDate+'T12:00:00').toLocaleDateString('pt-BR'):null;const row=document.createElement('div');row.style.cssText=`display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:9px 20px;border-bottom:1px solid var(--border);align-items:center;${i%2===1?'background:rgba(255,255,255,.012)':''}`;row.innerHTML=`<div class="mono" style="font-size:11px;color:var(--cyan);user-select:all;padding-right:8px">${cnpjDisplay}</div><div><div style="font-weight:700;font-size:13px;word-break:break-word;line-height:1.3;padding-right:12px">${a.pagador||'—'}</div><div style="font-size:10px;color:var(--text3);margin-top:3px">${a.tipoFrete||'N/D'} · ${a.papel||'Pagador'}</div></div><div class="mono" style="text-align:center;font-weight:700;font-size:14px">${a.awbs.length}</div><div class="mono" style="color:var(--accent);font-weight:800;font-size:12px">${R$(a.totalFrete)}</div><div><span style="background:rgba(249,115,22,.12);color:var(--accent);padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono)">${a.filial}</span></div><div style="font-size:11px;color:var(--text2)">${sourcesStr}</div><div>${isNew?'<span style="background:rgba(16,185,129,.18);color:var(--success);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700">Novo</span>':'<span style="background:rgba(249,115,22,.18);color:var(--accent);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700">Retornou</span>'}</div><div style="font-size:12px;color:${lastFmt?'var(--text2)':'var(--text3)'}">${lastFmt||'— (1° vez)'}</div>`;container.appendChild(row);});
-}
-function exportMNCSV(){const list=_mnFilter==='all'?_mnAll:_mnAll.filter(a=>a.cat===_mnFilter);let csv='CNPJ,Pagador,Tipo Frete,Papel,AWBs,Frete Total,Filial,Origem,Status,Ultima vez\n';list.forEach(a=>{const status=a.cat==='new'?'Nunca transportou':'Retornou (+90 dias)';csv+=`"${a.cnpj||''}","${a.pagador}","${a.tipoFrete||''}","${a.papel||''}",${a.awbs.length},${a.totalFrete},"${a.filial}","${[...a.sources].join('+')}","${status}","${a.lastDate||''}"\n`;});const el=document.createElement('a');el.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));el.download='clientes_novos_retorno.csv';el.click();}
-
-// ══════════════════════════════════════════════════════════
-//  NEGOCIAÇÃO
-// ══════════════════════════════════════════════════════════
-let NEG_LIST=[],NEG_MATCHES=[],NEG_FILTERED=[];function cleanCNPJ(v){return String(v||'').replace(/\D/g,'');}
-function parseNegDate(v){if(!v&&v!==0)return'';if(typeof v==='number'&&v>40000&&v<60000){const d=new Date(Math.round((v-25569)*86400*1000));if(!isNaN(d))return d.toLocaleDateString('pt-BR');}if(v instanceof Date)return v.toLocaleDateString('pt-BR');const s=String(v).trim();if(!s)return'';if(/^\d{4}-\d{2}-\d{2}/.test(s))return new Date(s+'T12:00:00').toLocaleDateString('pt-BR');if(/^\d{2}\/\d{2}\/\d{4}/.test(s))return s;return s;}
-function downloadNegTemplate(){const bom='\uFEFF';const csv=bom+'CNPJ,Razão Social,Data Negociação,Tabela,Vendedor,Contato,Observação\n12345678000195,Empresa Exemplo Ltda,2026-01-15,Tabela A,João Silva,(11)99999-9999,Cliente prioritário\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='planilha_negociacao_modelo.csv';a.click();toast('Planilha modelo baixada!','ok');}
-async function loadNegFile(){if(!window.showOpenFilePicker){toast('Use Chrome ou Edge.','err');return;}try{const[fh]=await window.showOpenFilePicker({types:[{description:'Planilha',accept:{'application/vnd.ms-excel':['.xls','.xlsx']}}]});const buf=await(await fh.getFile()).arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});if(rows.length<2){toast('Planilha vazia.','err');return;}const hdr=rows[0].map(h=>String(h).trim().toLowerCase());const ci=(...ns)=>{for(const n of ns){const i=hdr.findIndex(h=>h.includes(n.toLowerCase()));if(i>=0)return i;}return -1;};const iCNPJ=ci('cnpj'),iNome=ci('razão','razao','nome','social'),iDtNeg=ci('data neg','dt. neg','negociação','negociacao'),iTabela=ci('tabela','tab'),iVend=ci('vendedor','vend'),iCont=ci('contato','telefone','email'),iObs=ci('obs','observ','nota');if(iCNPJ<0){toast('Coluna CNPJ não encontrada.','err');return;}NEG_LIST=[];for(let i=1;i<rows.length;i++){const r=rows[i];let cnpj=cleanCNPJ(r[iCNPJ]);if(!cnpj||cnpj.length<8)continue;cnpj=cnpj.replace(/^0+/,'')||cnpj;NEG_LIST.push({cnpj,nome:iNome>=0?String(r[iNome]||'').trim():'',dtNeg:iDtNeg>=0?parseNegDate(r[iDtNeg]):'',tabela:iTabela>=0?String(r[iTabela]||'').trim():'',vendedor:iVend>=0?String(r[iVend]||'').trim():'',contato:iCont>=0?String(r[iCont]||'').trim():'',obs:iObs>=0?String(r[iObs]||'').trim():''});}$('neg-file-info').textContent=`${NEG_LIST.length} CNPJs carregados de "${fh.name}"`;toast(`✅ ${NEG_LIST.length} CNPJs de negociação carregados.`,'ok');_negPg=1;computeNegMatches();renderNeg();updateNegBadge();}catch(e){if(e.name!=='AbortError')toast('Erro ao ler planilha: '+e.message,'err');}}
-function computeNegMatches(){const allAWBs=[];Object.values(STATE.cache).forEach(d=>allAWBs.push(...d.cur,...d.prev));const cnpjMap={};allAWBs.forEach(a=>{if(!a.cnpj)return;const c=cleanCNPJ(a.cnpj);if(!c)return;if(!cnpjMap[c])cnpjMap[c]=[];cnpjMap[c].push(a);});NEG_MATCHES=NEG_LIST.map(entry=>{const awbs=cnpjMap[entry.cnpj]||[];const totalFrete=awbs.reduce((s,a)=>s+a.valor_frete,0);const sorted=[...awbs].sort((a,b)=>a.data>b.data?-1:1);const lastAWB=sorted[0]||null;return{...entry,awbs,totalFrete,lastDate:lastAWB?.data||null,movimentou:awbs.length>0};});}
-function updateNegBadge(){const count=NEG_MATCHES.filter(m=>m.movimentou).length;const badge=$('neg-badge-tab');if(count>0){badge.style.display='inline';badge.textContent=count;}else badge.style.display='none';const ib=$('neg-alert-count-badge');if(ib){if(count>0){ib.style.display='inline';ib.textContent=count+' movimentaram';}else ib.style.display='none';}}
-function renderNeg(){if(!NEG_LIST.length){$('neg-empty').style.display='flex';$('neg-content').style.display='none';const hdr=$('neg-hdr');if(hdr)hdr.style.display='none';return;}$('neg-empty').style.display='none';$('neg-content').style.display='block';const hdr=$('neg-hdr');if(hdr)hdr.style.display='flex';filterNeg();}
-let _negSortCol='movimentou',_negSortAsc=false,_negPg=1;const NEG_PP=60;
-function sortNeg(col){if(_negSortCol===col)_negSortAsc=!_negSortAsc;else{_negSortCol=col;_negSortAsc=true;}document.querySelectorAll('#body-neg-head th').forEach(th=>{const c=th.dataset.col;th.textContent=th.dataset.label+(c===col?(_negSortAsc?' ↑':' ↓'):' ↕');});_negPg=1;filterNeg();}
-function filterNeg(){const q=($('neg-search')?.value||'').trim().toLowerCase();const st=$('neg-filter-status')?.value||'';const vend=$('neg-filter-vendedor')?.value||'';NEG_FILTERED=NEG_MATCHES.filter(m=>{const cnpjD=(m.cnpj||'').replace(/^0+/,'');if(q&&!cnpjD.includes(q)&&!(m.cnpj||'').includes(q)&&!(m.nome||'').toLowerCase().includes(q)&&!(m.tabela||'').toLowerCase().includes(q))return false;if(st==='movimentou'&&!m.movimentou)return false;if(st==='sem_mov'&&m.movimentou)return false;if(vend&&m.vendedor!==vend)return false;return true;});
-NEG_FILTERED.sort((a,b)=>{let av=a[_negSortCol],bv=b[_negSortCol];if(_negSortCol==='movimentou'){av=a.movimentou?1:0;bv=b.movimentou?1:0;}if(_negSortCol==='totalFrete'||_negSortCol==='awbs.length'){av=_negSortCol==='awbs.length'?a.awbs.length:a.totalFrete;bv=_negSortCol==='awbs.length'?b.awbs.length:b.totalFrete;}const numA=parseFloat(av),numB=parseFloat(bv);const cmp=!isNaN(numA)&&!isNaN(numB)?numA-numB:String(av||'').localeCompare(String(bv||''),'pt-BR');return _negSortAsc?cmp:-cmp;});
-const negCount=$('neg-list-count');if(negCount)negCount.textContent=`${NEG_FILTERED.length} de ${NEG_MATCHES.length}`;
-const vendorSel=$('neg-filter-vendedor');if(vendorSel){const cur=vendorSel.value;const vendors=[...new Set(NEG_MATCHES.map(m=>m.vendedor).filter(Boolean))].sort();vendorSel.innerHTML='<option value="">Todos Vendedores</option>'+vendors.map(v=>`<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');}
-renderNegPg();}
-function renderNegPg(){const tbody=$('body-neg');if(!tbody)return;tbody.innerHTML='';const start=(_negPg-1)*NEG_PP;NEG_FILTERED.slice(start,start+NEG_PP).forEach(m=>{const filiais=[...new Set(m.awbs.map(a=>a.filial))].join(', ')||'—';const cnpjDigits=(m.cnpj||'').replace(/^0+/,'')||m.cnpj;const hasAwbs=m.awbs.length>0;const tr=document.createElement('tr');tr.style.cursor=hasAwbs?'pointer':'default';if(hasAwbs){tr.classList.add('row-clickable');tr.onclick=()=>openNegAwbs(m);}const lastFmt=m.lastDate?new Date(m.lastDate+'T12:00:00').toLocaleDateString('pt-BR'):'—';const nomeDisplay=m.nome?`<span title="${m.nome.replace(/"/g,'&quot;')}" style="display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nome}</span>`:'<span style="color:var(--text3)">—</span>';const tabelaDisplay=m.tabela?`<span title="${m.tabela.replace(/"/g,'&quot;')}" style="display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.tabela}</span>`:'—';const contatoRaw=[m.contato,m.obs].filter(Boolean).join(' · ')||'—';const contatoDisplay=`<span title="${contatoRaw.replace(/"/g,'&quot;')}" style="display:block;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${contatoRaw}</span>`;tr.innerHTML=`<td class="mono" style="font-size:11px;color:var(--cyan);white-space:nowrap">${cnpjDigits}</td><td style="font-weight:${m.nome?'600':'400'};padding-right:8px">${nomeDisplay}</td><td style="white-space:nowrap">${m.movimentou?'<span style="background:rgba(239,68,68,.13);color:var(--danger);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🔔 Mov.</span>':'<span style="color:var(--text3);font-size:11px">Aguard.</span>'}</td><td style="font-size:11px;color:var(--text2);white-space:nowrap">${filiais}</td><td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.dtNeg||'—'}</td><td style="font-size:11px;color:var(--text2)">${tabelaDisplay}</td><td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.vendedor||'—'}</td><td style="white-space:nowrap;color:${m.lastDate?'var(--accent)':'var(--text3)'}">${lastFmt}</td><td class="mono" style="text-align:center">${m.awbs.length||'—'}</td><td class="mono" style="color:${m.totalFrete>0?'var(--success)':'var(--text3)'};white-space:nowrap">${m.totalFrete>0?R$(m.totalFrete):'—'}</td><td style="color:var(--text2);font-size:11px">${contatoDisplay}</td>`;tbody.appendChild(tr);});renderPag('pg-neg',NEG_FILTERED.length,_negPg,NEG_PP,p=>{_negPg=p;renderNegPg();});}
-function openNegAwbs(m){const existing=$('modal-neg-awbs');if(existing)existing.remove();const cnpjDigits=(m.cnpj||'').replace(/^0+/,'')||m.cnpj;const sorted=[...m.awbs].sort((a,b)=>b.data.localeCompare(a.data));const rows=sorted.map(a=>`<tr><td class="mono" style="font-size:11px">${a.awb}</td><td>${new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR')}</td><td><span style="background:rgba(249,115,22,.12);color:var(--accent);padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono)">${a.filial}</span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${a.remetente}</td><td><span class="tag ${a.source}">${a.source}</span></td><td class="mono" style="color:var(--accent);font-weight:700">${R$(a.valor_frete)}</td><td style="color:var(--text3);font-size:11px">${a.cidade}/${a.uf}</td></tr>`).join('');const modal=document.createElement('div');modal.id='modal-neg-awbs';modal.style.cssText='position:fixed;inset:0;background:rgba(8,14,26,.88);z-index:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';modal.innerHTML=`<div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;width:min(98vw,860px);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.7)"><div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-weight:800;font-size:15px">${m.nome||cnpjDigits}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">CNPJ ${cnpjDigits} · ${sorted.length} embarque(s) · Total ${R$(m.totalFrete)}</div></div><button onclick="document.getElementById('modal-neg-awbs').remove();document.body.style.overflow=''" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1;padding:4px 8px">×</button></div><div style="overflow-y:auto;flex:1"><table style="width:100%"><thead><tr><th>AWB</th><th>Data</th><th>Filial</th><th>Remetente</th><th>Tipo</th><th>Frete</th><th>Destino</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;modal.addEventListener('click',e=>{if(e.target===modal){modal.remove();document.body.style.overflow='';}});document.body.appendChild(modal);document.body.style.overflow='hidden';}
-
-// ══════════════════════════════════════════════════════════
-//  AWB SORT & EXPORT
-// ══════════════════════════════════════════════════════════
-let _awbSortCol=-1,_awbSortAsc=true;
-function sortAWB(col){if(_awbSortCol===col)_awbSortAsc=!_awbSortAsc;else{_awbSortCol=col;_awbSortAsc=true;}const fields=['awb','data',null,'remetente',null,null,null,'peso',null,'valor_frete'];const field=fields[col];if(!field)return;awbAll.sort((a,b)=>{const av=a[field],bv=b[field];const an=typeof av==='number'?av:parseFloat(av)||0;const bn=typeof bv==='number'?bv:parseFloat(bv)||0;const cmp=!isNaN(an)&&!isNaN(bn)?an-bn:String(av||'').localeCompare(String(bv||''),'pt-BR');return _awbSortAsc?cmp:-cmp;});renderAWBPg();}
-function exportAWBCSV(){let csv='AWB,Data,Filial,Remetente,Destinatário,Cidade,UF,Volumes,Peso,Merc.,Frete,Tipo,Modal,Origem,Período\n';awbAll.forEach(a=>{csv+=`"${a.awb}","${a.data}","${a.filial}","${a.remetente}","${a.destinatario}","${a.cidade}","${a.uf}",${a.volumes},${a.peso},${a.valor_mercantil},${a.valor_frete},"${a.tipo_frete}","${a.modal}","${a.source}","${a.periodo}"\n`;});const el=document.createElement('a');el.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));el.download='awb_export.csv';el.click();}
-function exportCSV(filial){const{cur,prev}=_data;const dmC=dmap(cur,filial,null),dmP=dmap(prev,filial,null);let csv=`Data,Dia,Carteira,Extra,Total,AWBs,Volumes,${_prevY}_equiv,Delta%\n`;_wdC.forEach((dt,i)=>{const r=dmC[dt];const dp=_wdP[i];const v25=dp?(dmP[dp]?.total||0):0;const tot=r?.total||0;const dp2=v25>0?((tot-v25)/v25*100).toFixed(1):'';csv+=`${dt},${dn(dt)},${r?.carteira||0},${r?.extra||0},${tot},${r?.awbs||0},${r?.volumes||0},${v25},${dp2}\n`;});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${filial}_${_curY}-${padM(_mo)}.csv`;a.click();}
-
-function updatePeriodChip(curYear,month,prevYear){$('period-chip').innerHTML=`${MONTHS[month]} ${curYear}<small>vs ${prevYear} · ${STATE.curIdx+1}/${STATE.periods.length}</small>`;}
-
-// ══════════════════════════════════════════════════════════
-//  PAGINATION
-// ══════════════════════════════════════════════════════════
-function renderPag(cid,total,cur,pp,onClick){const el=$(cid);el.innerHTML='';const tp=Math.ceil(total/pp);if(tp<=1)return;const mk=(lbl,p,active,dis)=>{const b=document.createElement('button');b.className='pg-btn'+(active?' active':'');b.textContent=lbl;b.disabled=dis;if(!dis)b.onclick=()=>onClick(p);el.appendChild(b);};mk('‹',cur-1,false,cur===1);let pgs=[];if(tp<=7)for(let i=1;i<=tp;i++)pgs.push(i);else{pgs=[1];if(cur>3)pgs.push('…');for(let i=Math.max(2,cur-1);i<=Math.min(tp-1,cur+1);i++)pgs.push(i);if(cur<tp-2)pgs.push('…');pgs.push(tp);}pgs.forEach(p=>mk(p,p,p===cur,p==='…'));mk('›',cur+1,false,cur===tp);const info=document.createElement('span');info.className='pg-info';info.textContent=`${cur}/${tp}`;el.appendChild(info);}
-
-// ══════════════════════════════════════════════════════════
-//  CHARTS HELPERS
-// ══════════════════════════════════════════════════════════
-const CHARTS={};function dch(k){if(CHARTS[k]){CHARTS[k].destroy();delete CHARTS[k];}}function mkChart(id,type,data,opts){return new Chart($(id),{type,data,options:opts});}
-function co({stacked=false}={}){return{responsive:true,plugins:{legend:{labels:{color:'#7c93b0',font:{size:11}}},tooltip:{callbacks:{label:c=>' '+R$(c.raw||0)}}},scales:{x:{stacked,grid:{color:'rgba(30,51,82,.5)'},ticks:{color:'#3d5270',font:{size:10}}},y:{stacked,grid:{color:'rgba(30,51,82,.5)'},ticks:{color:'#3d5270',font:{size:10},callback:v=>'R$'+(v/1000).toFixed(0)+'k'}}}};}
-
-// ══════════════════════════════════════════════════════════
-//  TABLE SORT
-// ══════════════════════════════════════════════════════════
-const sortSt={};function srt(id,col){const t=$(id);if(!t)return;const rows=Array.from(t.querySelector('tbody').rows);const key=id+'_'+col;const asc=sortSt[key]!=='asc';sortSt[key]=asc?'asc':'desc';rows.sort((a,b)=>{const av=a.cells[col]?.textContent.replace(/[R$\s,.%+]/g,'')||'';const bv=b.cells[col]?.textContent.replace(/[R$\s,.%+]/g,'')||'';const an=parseFloat(av),bn=parseFloat(bv);if(!isNaN(an)&&!isNaN(bn))return asc?an-bn:bn-an;return asc?av.localeCompare(bv,'pt-BR'):bv.localeCompare(av,'pt-BR');});rows.forEach(r=>t.querySelector('tbody').appendChild(r));}
-
-// ══════════════════════════════════════════════════════════
-//  TABS
-// ══════════════════════════════════════════════════════════
-function showPane(name,el){$$('.pane').forEach(p=>p.classList.remove('active'));$$('.tab').forEach(t=>t.classList.remove('active'));const paneEl=$('pane-'+name);if(paneEl)paneEl.classList.add('active');if(el)el.classList.add('active');renderPane(name);}
-
-// ══════════════════════════════════════════════════════════
-//  UTILS
-// ══════════════════════════════════════════════════════════
-function set(id,val,style){const el=$(id);if(!el)return;el.textContent=val;if(style)el.style.cssText=style;}
-function bb(id,txt,cls){const el=$(id);if(!el)return;el.textContent=txt;el.className='badge '+cls;}
-function showLoading(txt,sub='',pct=null){$('loading').classList.remove('hidden');$('loading-txt').textContent=txt;$('loading-sub').textContent=sub||'';const wrap=$('loading-bar-wrap'),fill=$('loading-bar-fill');if(pct!==null){wrap.style.display='block';fill.style.width=pct+'%';}else{wrap.style.display='none';fill.style.width='0%';}}
-function hideLoading(){$('loading').classList.add('hidden');const fill=$('loading-bar-fill');if(fill)fill.style.width='0%';const wrap=$('loading-bar-wrap');if(wrap)wrap.style.display='none';}
-// ══════════════════════════════════════════════════════════
-//  COMISSÃO
-// ══════════════════════════════════════════════════════════
-function getCommRates(){
-  const pctFOB=parseFloat($('comm-rate-fob')?.value||2)||2;
-  const pctCIF=parseFloat($('comm-rate-cif')?.value||0.1)||0.1;
-  const pctMy=parseFloat($('comm-rate-my')?.value||20)||20;
-  return{pctFOB,pctCIF,pctMy,myFOB:pctFOB*pctMy/100,myCIF:pctCIF*pctMy/100};
-}
-
-function calcComm(awbs,filial){
-  const r=getCommRates();
-  const src=filial?awbs.filter(a=>a.filial===filial):awbs;
-  const fobBase=src.filter(a=>(a.tipo_frete||'').toUpperCase()==='FOB').reduce((s,a)=>s+a.valor_frete,0);
-  const cifBase=src.filter(a=>(a.tipo_frete||'').toUpperCase()==='CIF').reduce((s,a)=>s+a.valor_frete,0);
-  const outros=src.filter(a=>!['FOB','CIF'].includes((a.tipo_frete||'').toUpperCase())).reduce((s,a)=>s+a.valor_frete,0);
-  const gerenteFOB=fobBase*r.pctFOB/100;
-  const gerenteCIF=cifBase*r.pctCIF/100;
-  const gerente=gerenteFOB+gerenteCIF;
-  const myComm=gerente*r.pctMy/100;
-  return{fobBase,cifBase,outros,gerenteFOB,gerenteCIF,gerente,myComm};
-}
-
-function calcCommSC(sc,filial){
-  if(!sc||!sc.length)return{fobBase:0,cifBase:0,myComm:0};
-  const r=getCommRates();
-  const src=(filial?sc.filter(a=>a.filial===filial):sc).filter(a=>!a.migrated);
-  const fobBase=src.filter(a=>(a.tipo_frete||'').toUpperCase()==='FOB').reduce((s,a)=>s+a.valor_frete,0);
-  const cifBase=src.filter(a=>(a.tipo_frete||'').toUpperCase()==='CIF').reduce((s,a)=>s+a.valor_frete,0);
-  const gerenteFOB=fobBase*r.pctFOB/100;
-  const gerenteCIF=cifBase*r.pctCIF/100;
-  const gerente=gerenteFOB+gerenteCIF;
-  const myComm=gerente*r.pctMy/100;
-  return{fobBase,cifBase,myComm,gerente};
-}
-
-function renderComissao(){
-  if(!_data){return;}
-  const r=getCommRates();
-  if($('comm-period'))$('comm-period').textContent=`${MONTHS[_mo]} ${_curY}`;
-  if($('comm-rates-effective'))$('comm-rates-effective').innerHTML=`Taxa efetiva sua: <strong style="color:var(--gold);font-family:var(--mono)">${r.myFOB.toFixed(4)}% FOB</strong> · <strong style="color:var(--cyan);font-family:var(--mono)">${r.myCIF.toFixed(4)}% CIF</strong>`;
-
-  // Acumula todos os períodos do ano
-  const allCur=[];STATE.periods.forEach(p=>{const d=STATE.cache[p];if(d)allCur.push(...d.cur);});
-  const{sc}=_data; // SC só do mês atual
-
-  // Banner principal — comissão total do ano
-  const commAno=calcComm(allCur,null);
-  const commMes=calcComm(_data.cur,null);
-  const commSCMes=calcCommSC(sc,null);
-  const today=new Date().toISOString().split('T')[0];
-  const elapsed=_wdC.filter(d=>d<=today).length;
-  const projMes=elapsed>0?(commMes.myComm/elapsed)*_wdC.length:0;
-
-  const bannerGrid=$('comm-banner-grid');
-  if(bannerGrid){
-    bannerGrid.innerHTML=`
-      <div class="kpi" style="border-top:3px solid var(--gold)">
-        <div class="kpi-lbl">💰 Minha Comissão — Ano</div>
-        <div class="kpi-val" style="color:var(--gold)">${R$(commAno.myComm)}</div>
-        <div class="kpi-sub">Gerente: ${R$(commAno.gerente)}</div>
-      </div>
-      <div class="kpi" style="border-top:3px solid var(--cyan)">
-        <div class="kpi-lbl">💰 Minha Comissão — Mês</div>
-        <div class="kpi-val" style="color:var(--cyan)">${R$(commMes.myComm)}</div>
-        <div class="kpi-sub">Projeção mês: ${R$(projMes)}</div>
-      </div>
-      <div class="kpi" style="border-top:3px solid var(--accent)">
-        <div class="kpi-lbl">FOB faturado — Mês</div>
-        <div class="kpi-val" style="color:var(--accent)">${R$(commMes.fobBase)}</div>
-        <div class="kpi-sub">Ano: ${R$(commAno.fobBase)}</div>
-      </div>
-      <div class="kpi" style="border-top:3px solid var(--cyan)">
-        <div class="kpi-lbl">CIF faturado — Mês</div>
-        <div class="kpi-val" style="color:var(--cyan)">${R$(commMes.cifBase)}</div>
-        <div class="kpi-sub">Ano: ${R$(commAno.cifBase)}</div>
-      </div>
-      ${commSCMes.myComm>0?`
-      <div class="kpi" style="border-top:3px solid var(--sc);background:var(--sc-bg)">
-        <div class="kpi-lbl">⚠ SC Potencial — Minha Comissão</div>
-        <div class="kpi-val" style="color:var(--sc)">${R$(commSCMes.myComm)}</div>
-        <div class="kpi-sub">Se todo SC migrar: ${R$(commMes.myComm+commSCMes.myComm)}</div>
-      </div>`:''}`;
-  }
-
-  // SC section
-  const scSection=$('comm-sc-section');
-  const scGrid=$('comm-sc-potential-grid');
-  if(sc&&sc.length>0&&scSection&&scGrid){
-    scSection.style.display='block';
-    scGrid.innerHTML='';
-    STATE.filiais.forEach((filial,fi)=>{
-      const col=FILIAL_COLORS[fi%FILIAL_COLORS.length];
-      const scF=calcCommSC(sc,filial);
-      if(scF.myComm<=0)return;
-      scGrid.innerHTML+=`
-        <div style="background:var(--card);border:1px solid var(--sc-border);border-radius:10px;padding:12px 14px">
-          <div style="font-size:11px;font-weight:700;color:${col.color};margin-bottom:8px">${filial}</div>
-          <div style="font-size:14px;font-weight:800;font-family:var(--mono);color:var(--sc);margin-bottom:4px">${R$(scF.myComm)}</div>
-          <div style="font-size:10px;color:var(--text3)">FOB SC: ${R$(scF.fobBase)} · CIF SC: ${R$(scF.cifBase)}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">Gerente potencial: ${R$(scF.gerente)}</div>
-        </div>`;
-    });
-  }else if(scSection)scSection.style.display='none';
-
-  // Tabela por filial
-  const tbody=$('body-comm-filial');
-  if(tbody){
-    tbody.innerHTML='';
-    let totFOB=0,totCIF=0,totGer=0,totMy=0,totSCMy=0,totSCBase=0;
-    STATE.filiais.forEach((filial,fi)=>{
-      const col=FILIAL_COLORS[fi%FILIAL_COLORS.length];
-      const c=calcComm(allCur,filial);
-      const cSC=calcCommSC(sc,filial);
-      totFOB+=c.fobBase;totCIF+=c.cifBase;totGer+=c.gerente;totMy+=c.myComm;totSCMy+=cSC.myComm;totSCBase+=cSC.fobBase+cSC.cifBase;
-      const tr=document.createElement('tr');
-      tr.innerHTML=`
-        <td><span style="background:rgba(249,115,22,.12);color:${col.color};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${filial}</span></td>
-        <td style="text-align:right;font-family:var(--mono)">${R$(c.fobBase)}</td>
-        <td style="text-align:right;font-family:var(--mono)">${R$(c.cifBase)}</td>
-        <td style="text-align:right;font-family:var(--mono)">${R$(c.gerente)}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--gold)">${R$(c.myComm)}</td>
-        <td style="text-align:right;font-family:var(--mono);color:var(--sc)">${cSC.fobBase+cSC.cifBase>0?R$(cSC.fobBase+cSC.cifBase):'—'}</td>
-        <td style="text-align:right;font-family:var(--mono);color:var(--warning)">${cSC.myComm>0?R$(cSC.myComm):'—'}</td>`;
-      tbody.appendChild(tr);
-    });
-    // Total row
-    const trTot=document.createElement('tr');
-    trTot.style.cssText='font-weight:800;background:rgba(245,158,11,.05);border-top:2px solid var(--gold-border)';
-    trTot.innerHTML=`
-      <td style="color:var(--gold)">TOTAL ANO</td>
-      <td style="text-align:right;font-family:var(--mono)">${R$(totFOB)}</td>
-      <td style="text-align:right;font-family:var(--mono)">${R$(totCIF)}</td>
-      <td style="text-align:right;font-family:var(--mono)">${R$(totGer)}</td>
-      <td style="text-align:right;font-family:var(--mono);color:var(--gold);font-size:15px">${R$(totMy)}</td>
-      <td style="text-align:right;font-family:var(--mono);color:var(--sc)">${totSCBase>0?R$(totSCBase):'—'}</td>
-      <td style="text-align:right;font-family:var(--mono);color:var(--warning)">${totSCMy>0?R$(totSCMy):'—'}</td>`;
-    tbody.appendChild(trTot);
-  }
-
-  // Gráfico mensal
-  dch('chCommMonthly');
-  if($('ch-comm-monthly')){
-    const labels=[];const myData=[];const scData=[];
-    STATE.periods.forEach(p=>{
-      const{year,month}=decodePeriod(p);const d=STATE.cache[p];if(!d)return;
-      labels.push(MONTHS[month].substring(0,3)+' '+year);
-      const c=calcComm(d.cur,null);myData.push(c.myComm);
-      const cSC=month===_mo?calcCommSC(d.sc,null).myComm:0;scData.push(cSC);
-    });
-    CHARTS.chCommMonthly=mkChart('ch-comm-monthly','bar',{labels,datasets:[
-      {label:'Comissão Comissionada',data:myData,backgroundColor:'rgba(245,158,11,.8)',borderRadius:4,stack:'a'},
-      {label:'Potencial SC',data:scData,backgroundColor:'rgba(167,139,250,.6)',borderRadius:4,stack:'a'}
-    ]},co({stacked:true}));
-  }
-
-  // Gráfico por tipo — mês atual
-  dch('chCommTipo');
-  if($('ch-comm-tipo')){
-    const c=calcComm(_data.cur,null);
-    const cSC=calcCommSC(sc,null);
-    CHARTS.chCommTipo=mkChart('ch-comm-tipo','doughnut',{
-      labels:['FOB (comissionado)','CIF (comissionado)','FOB SC potencial','CIF SC potencial'],
-      datasets:[{
-        data:[c.gerenteFOB*r.pctMy/100,c.gerenteCIF*r.pctMy/100,
-              cSC?cSC.fobBase*r.pctFOB/100*r.pctMy/100:0,
-              cSC?cSC.cifBase*r.pctCIF/100*r.pctMy/100:0],
-        backgroundColor:['rgba(249,115,22,.8)','rgba(6,182,212,.8)','rgba(167,139,250,.5)','rgba(167,139,250,.3)'],
-        borderWidth:1
-      }]
-    },{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'right',labels:{color:'#7c93b0',font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:c=>' '+R$(c.raw)}}}});
-  }
-
-  // Tabela diária do mês atual
-  if($('comm-mes-atual-lbl'))$('comm-mes-atual-lbl').textContent=`${MONTHS[_mo]} ${_curY}`;
-  const dmCurAll=dmap(_data.cur,null,_data.sc);
-  const dmScAll=_data.sc?dmap([],null,_data.sc):{};
-  const tBodyD=$('body-comm-daily');
-  const tFoot=$('foot-comm-daily');
-  if(tBodyD){
-    tBodyD.innerHTML='';
-    let totFOBD=0,totCIFD=0,totGerD=0,totMyD=0,totSCD=0,totSCMyD=0;
-    _wdC.forEach((dt,i)=>{
-      const dayAWBs=_data.cur.filter(a=>a.data===dt);
-      if(dayAWBs.length===0&&dt>today)return;
-      const c=calcComm(dayAWBs,null);
-      const scDay=_data.sc?_data.sc.filter(a=>a.data===dt&&!a.migrated):[];
-      const scDayComm=scDay.reduce((s,a)=>{
-        const rr=getCommRates();
-        const isFOB=(a.tipo_frete||'').toUpperCase()==='FOB';
-        return s+(isFOB?a.valor_frete*rr.pctFOB/100*rr.pctMy/100:a.valor_frete*rr.pctCIF/100*rr.pctMy/100);
-      },0);
-      const scDayBase=scDay.reduce((s,a)=>s+a.valor_frete,0);
-      totFOBD+=c.fobBase;totCIFD+=c.cifBase;totGerD+=c.gerente;totMyD+=c.myComm;totSCD+=scDayBase;totSCMyD+=scDayComm;
-      const isToday=dt===today;const isFuture=dt>today;
-      const tr=document.createElement('tr');
-      tr.style.background=isToday?'rgba(245,158,11,.06)':isFuture?'rgba(255,255,255,.01)':'';
-      tr.innerHTML=`
-        <td class="mono"><strong>${fd(dt)}</strong>${isToday?' <span style="background:var(--gold);color:#000;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:800">HOJE</span>':''}</td>
-        <td style="color:var(--text2)">${dn(dt)}</td>
-        <td style="text-align:right;font-family:var(--mono);color:${c.fobBase>0?'var(--accent)':'var(--text3)'}">${c.fobBase>0?R$(c.fobBase):'—'}</td>
-        <td style="text-align:right;font-family:var(--mono);color:${c.cifBase>0?'var(--cyan)':'var(--text3)'}">${c.cifBase>0?R$(c.cifBase):'—'}</td>
-        <td style="text-align:right;font-family:var(--mono)">${c.gerente>0?R$(c.gerente):'—'}</td>
-        <td style="text-align:right;font-family:var(--mono);font-weight:800;color:${c.myComm>0?'var(--gold)':'var(--text3)'}">${c.myComm>0?R$(c.myComm):'—'}</td>
-        <td style="text-align:right;font-family:var(--mono);color:var(--sc)">${scDayBase>0?R$(scDayBase):'—'}</td>
-        <td style="text-align:right;font-family:var(--mono);color:var(--warning)">${scDayComm>0?R$(scDayComm):'—'}</td>`;
-      tBodyD.appendChild(tr);
-    });
-    if(tFoot)tFoot.innerHTML=`<tr style="font-weight:800;background:rgba(245,158,11,.07);border-top:2px solid var(--gold-border)">
-      <td colspan="2" style="color:var(--gold)">TOTAL MÊS</td>
-      <td style="text-align:right;font-family:var(--mono)">${R$(totFOBD)}</td>
-      <td style="text-align:right;font-family:var(--mono)">${R$(totCIFD)}</td>
-      <td style="text-align:right;font-family:var(--mono)">${R$(totGerD)}</td>
-      <td style="text-align:right;font-family:var(--mono);color:var(--gold);font-size:14px">${R$(totMyD)}</td>
-      <td style="text-align:right;font-family:var(--mono);color:var(--sc)">${totSCD>0?R$(totSCD):'—'}</td>
-      <td style="text-align:right;font-family:var(--mono);color:var(--warning)">${totSCMyD>0?R$(totSCMyD):'—'}</td>
-    </tr>`;
-    if($('comm-mes-total-lbl'))$('comm-mes-total-lbl').textContent=`Total mês comissão minha: ${R$(totMyD)}${totSCMyD>0?' + '+R$(totSCMyD)+' SC potencial':''}`;
-  }
-}
-
-function exportCommCSV(){
-  const r=getCommRates();
-  const allCur=[];STATE.periods.forEach(p=>{const d=STATE.cache[p];if(d)allCur.push(...d.cur);});
-  const{sc}=_data;
-  let csv=`Filial,FOB Base,CIF Base,Comissão Gerente,Minha Comissão,SC a Recuperar,Comissão Potencial SC\n`;
-  STATE.filiais.forEach(filial=>{
-    const c=calcComm(allCur,filial);const cSC=calcCommSC(sc,filial);
-    csv+=`"${filial}",${c.fobBase},${c.cifBase},${c.gerente},${c.myComm},${cSC.fobBase+cSC.cifBase},${cSC.myComm}\n`;
-  });
-  csv+=`\nTaxas utilizadas: Gerente FOB ${r.pctFOB}% | Gerente CIF ${r.pctCIF}% | Sua parte ${r.pctMy}%\n`;
-  csv+=`Taxa efetiva sua: FOB ${r.myFOB.toFixed(4)}% | CIF ${r.myCIF.toFixed(4)}%\n`;
-  const el=document.createElement('a');el.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));el.download=`comissao_${_curY}.csv`;el.click();
-}
-
-function toast(msg,type='ok'){const t=$('toastEl');t.textContent=(type==='ok'?'OK: ':'Erro: ')+msg;t.className=`toast ${type} show`;clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),4500);}
-// ── 1. RASTREAR FILIAIS COM SC ─────────────────────────────────
-if (!STATE.scFiliais) STATE.scFiliais = new Set();
-
-// ── 2. parseXLS — versão corrigida ────────────────────────────
-parseXLS = async function(handle, filial, source, year) {
-  try {
-    const buf = await (await handle.getFile()).arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
-
-    // Header: busca até linha 12 para cobrir planilhas SC com cabeçalho deslocado
-    // Reconhece tanto 'AWB' quanto 'CTRC' (Braspress SC) e combinação Remetente+Data
-    let hi = 0;
-    for (let i = 0; i < Math.min(12, rows.length); i++) {
-      const hasAWB  = rows[i].some(c => /\bAWB\b/i.test(String(c)));
-      const hasCTRC = rows[i].some(c => /\bCTRC\b/i.test(String(c)));
-      const hasRem  = rows[i].some(c => /^Remetente$/i.test(String(c).trim()));
-      const hasData = rows[i].some(c => /^Data$/i.test(String(c).trim()));
-      if (hasAWB || hasCTRC || (hasRem && hasData)) { hi = i; break; }
-    }
-
-    const hdr = rows[hi].map(h => String(h).trim());
-    const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    const normHdr = hdr.map(norm);
-    const ci = (...ns) => {
-      for (const n of ns) {
-        const nk = norm(n);
-        const exact = normHdr.findIndex(h => h === nk);
-        if (exact >= 0) return exact;
-      }
-      for (const n of ns) {
-        const nk = norm(n);
-        const partial = normHdr.findIndex(h => h.includes(nk));
-        if (partial >= 0) return partial;
-      }
-      return -1;
-    };
-
-    const I = {
-      // CTRC = AWB nas planilhas SC da Braspress
-      awb:     ci('Nro. AWB','Numero AWB','Nr. AWB','Num. AWB','AWB','CTRC','Nro','Nr.','Numero'),
-      data:    ci('Data Emissão','Data Emissao','Dt. Emissão','Dt. Emissao','Dt Emissao','Data de Emissão','Emitido','Emissão','Data','Dt.'),
-      rem:     ci('Remetente','Nome Remetente','Razão Social Rem','Razao Social Rem','Remet'),
-      dest:    ci('Destinatário','Destinatario','Nome Destinatário','Razão Social Dest','Razao Social Dest','Dest'),
-      cid:     ci('Cidade Destino','Cidade Dest','Municipio','Município','Cidade'),
-      uf:      ci('UF Destino','UF Dest','Estado Destino','Estado','UF'),
-      // 'Volume' (SC Braspress) antes de 'Volumes' (demais)
-      vol:     ci('Volume','Volumes','Qtd Volumes','Qtd. Volumes','Quantidade','Vol','Qtd'),
-      peso:    ci('Peso Real','Peso Bruto','Peso Kg','Peso (kg)','Peso'),
-      merc:    ci('Valor Mercadoria','Valor Mercantil','Valor da Mercadoria','Vl Mercantil','Vlr Mercantil','Vl. Merc.','Mercantil','Merc'),
-      fret:    ci('Valor Frete','Valor do Frete','Valor Frete Total','Vl. do Frete','Vl Frete','Vlr Frete','Vl. Frete','Total Frete','Frete'),
-      tipo:    ci('Tipo Frete','Tipo de Frete','Tp. Frete','Tp Frete','Frete Tipo'),
-      modal:   ci('Modal de Transporte','Modalidade Transporte','Modalidade','Modal'),
-      ramo:    ci('Ramo de Atividade','Ramo Atividade','Segmento Atividade','Ramo','Segmento'),
-      cnpjRem: ci('CNPJ Remetente','CNPJ/CPF Remetente','CNPJ Rem','CNPJ do Remetente','CNPJ Remet.'),
-      cnpjDest:ci('CNPJ Destinatário','CNPJ Destinatario','CNPJ/CPF Destinatário','CNPJ/CPF Destinatario','CNPJ Dest'),
-      cnpj:    ci('CNPJ Remetente','CNPJ/CPF','C.N.P.J.','C.N.P.J','CNPJ','Cnpj'),
-    };
-
-    // Fallback: detectar coluna de data por tipo de valor na primeira linha de dados
-    if (I.data < 0) {
-      for (let col = 0; col < hdr.length; col++) {
-        const sample = rows[hi + 1]?.[col];
-        if (!sample && sample !== 0) continue;
-        if (sample instanceof Date) { I.data = col; break; }
-        if (typeof sample === 'number' && sample > 40000 && sample < 55000) { I.data = col; break; }
-        if (typeof sample === 'string' && /\d{2}\/\d{2}\/\d{4}/.test(sample)) { I.data = col; break; }
-        if (typeof sample === 'string' && /\d{4}-\d{2}-\d{2}/.test(sample)) { I.data = col; break; }
-      }
-    }
-
-    const recs = [];
-    for (let i = hi + 1; i < rows.length; i++) {
-      const r = rows[i];
-      const awbVal = r[I.awb];
-      if (!awbVal && awbVal !== 0) continue;
-
-      // ── ANTI-LIXO: linha de totais/rodapé ──────────────────
-      // Planilhas SC Braspress terminam com uma linha de totais onde
-      // col 0 = número pequeno (contagem de registros, ex: 9).
-      // CTRCs reais são >= 100000. Descartamos números pequenos em source=sc.
-      if (source === 'sc' && typeof awbVal === 'number' && awbVal < 100000) continue;
-
-      // Linha sem data válida = rodapé ou linha em branco
-      const dataVal = I.data >= 0 ? r[I.data] : '';
-      if (!dataVal && dataVal !== 0) continue;
-
-      // ── PARSE DE DATA ───────────────────────────────────────
-      let dt = dataVal;
-      if (dt instanceof Date) {
-        const y = dt.getFullYear(), m = String(dt.getMonth()+1).padStart(2,'0'), d = String(dt.getDate()).padStart(2,'0');
-        dt = `${y}-${m}-${d}`;
-      } else if (typeof dt === 'number' && dt > 0) {
-        try {
-          const msUtc = Math.round((dt - 25569) * 86400 * 1000);
-          const jsDate = new Date(msUtc);
-          if (!isNaN(jsDate.getTime())) {
-            const y = jsDate.getUTCFullYear(), m = String(jsDate.getUTCMonth()+1).padStart(2,'0'), d = String(jsDate.getUTCDate()).padStart(2,'0');
-            dt = `${y}-${m}-${d}`;
-          } else continue;
-        } catch (e) { continue; }
-      } else {
-        dt = String(dt).trim().split(' ')[0].split('T')[0];
-        if (!dt) continue;
-        if (dt.includes('/')) {
-          const p = dt.split('/').map(v => v.trim());
-          if (p.length === 3) {
-            let [a, b, c] = p;
-            a = a.padStart(2,'0'); b = b.padStart(2,'0');
-            if (c.length === 2) c = '20' + c;
-            dt = `${c}-${b}-${a}`;
-          }
-        }
-        const tmp = new Date(dt + 'T12:00:00');
-        if (isNaN(tmp.getTime())) continue;
-        dt = tmp.toISOString().slice(0, 10);
-      }
-
-      // Ano deve ser razoável
-      const dtYear = parseInt(dt.slice(0, 4));
-      if (dtYear < 2015 || dtYear > 2040) continue;
-
-      const cnpjRem  = I.cnpjRem  >= 0 ? (String(r[I.cnpjRem]  || '').replace(/\D/g,'').replace(/^0+/,'') || '') :
-                       I.cnpj     >= 0 ? (String(r[I.cnpj]     || '').replace(/\D/g,'').replace(/^0+/,'') || '') : '';
-      const cnpjDest = I.cnpjDest >= 0 ? (String(r[I.cnpjDest] || '').replace(/\D/g,'').replace(/^0+/,'') || '') : '';
-
-      recs.push({
-        awb: String(awbVal).trim(),
-        data: dt,
-        filial, source, year,
-        remetente:      String(r[I.rem]  || '').trim().substring(0, 45),
-        destinatario:   String(r[I.dest] || '').substring(0, 45),
-        cidade:         String(r[I.cid]  || ''),
-        uf:             String(r[I.uf]   || ''),
-        volumes:        parseInt(r[I.vol]) || 0,
-        peso:           pNum(r[I.peso]),
-        valor_mercantil:pNum(r[I.merc]),
-        valor_frete:    pNum(r[I.fret]),
-        tipo_frete:     String(r[I.tipo]  || ''),
-        modal:          normModal(r[I.modal]),
-        ramo:           String(r[I.ramo]  || '').substring(0, 40),
-        cnpj: cnpjRem, cnpj_remetente: cnpjRem, cnpj_destinatario: cnpjDest,
-        periodo: STATE.periods[STATE.curIdx] || ''
-      });
-    }
-    return recs;
-  } catch (e) { return []; }
-};
-
-// ── 3. loadPeriodData — registrar filiais com SC ──────────────
-loadPeriodData = async function(curYear, prevYear, month) {
-  const mo = padM(month);
-  const curDir  = await getMonthDir(curYear, mo);
-  const prevDir = await getMonthDir(prevYear, mo);
-  const allCur  = curDir  ? await readDirAWBs(curDir,  curYear) : [];
-  const prev    = prevDir ? await readDirAWBs(prevDir, prevYear) : await readAnnualYearAWBs(prevYear, month);
-
-  const cur = allCur.filter(a => a.source !== 'sc');
-  const sc  = allCur.filter(a => a.source === 'sc');
-
-  // Registrar globalmente quais filiais têm arquivo SC
-  if (!STATE.scFiliais) STATE.scFiliais = new Set();
-  sc.forEach(a => STATE.scFiliais.add(a.filial));
-
-  // Marcar SC que já migraram para Carteira/Extra
-  const curAWBSet = new Set(cur.map(a => a.awb));
-  sc.forEach(a => { a.migrated = curAWBSet.has(a.awb); });
-
-  return { cur, prev, sc };
-};
-
-// ── 4. Helpers de visibilidade SC ─────────────────────────────
-function filialHasSC(filial) {
-  return !!(STATE.scFiliais && STATE.scFiliais.has(filial));
-}
-function anyFilialHasSC() {
-  return !!(STATE.scFiliais && STATE.scFiliais.size > 0);
-}
-
-// ── 5. Patch renderFilial — ocultar/mostrar seções SC ─────────
-// Guarda a função original e envolve com lógica condicional SC
-const _renderFilialOriginal = renderFilial;
-renderFilial = function(filial) {
-  _renderFilialOriginal(filial);
-
-  const pfx = filial.toLowerCase();
-  const hasSC = filialHasSC(filial);
-
-  // Banner SC por filial: mostrar só se a filial tem arquivo SC
-  const scBannerEl = document.getElementById(`${pfx}-sc-banner`);
-  if (scBannerEl && !hasSC) {
-    scBannerEl.style.display = 'none';
-  }
-
-  // KPI card "SC Potencial": mostrar só se filial tem SC
-  const scKpiEl = document.getElementById(`${pfx}-sc-kpi`);
-  if (scKpiEl) {
-    // O KPI está dentro de um .kpi.sc — esconder o card todo
-    const kpiCard = scKpiEl.closest('.kpi');
-    if (kpiCard) kpiCard.style.display = hasSC ? '' : 'none';
-  }
-
-  // Coluna SC na tabela diária: mostrar só se filial tem SC
-  const tbl = document.getElementById(`tbl-${pfx}`);
-  if (tbl) {
-    // Coluna SC está no índice 4 (0-based) do thead e tbody
-    const heads = tbl.querySelectorAll('thead th');
-    const rows  = tbl.querySelectorAll('tbody tr');
-    // Coluna 4 = SC, coluna 11 = SC↕
-    [4, 11].forEach(colIdx => {
-      if (heads[colIdx]) heads[colIdx].style.display = hasSC ? '' : 'none';
-      rows.forEach(tr => {
-        if (tr.cells[colIdx]) tr.cells[colIdx].style.display = hasSC ? '' : 'none';
-      });
-    });
-  }
-};
-
-// ── 6. Patch renderOverview — ocultar banner SC se nenhuma filial tem SC
-const _renderOverviewOriginal = renderOverview;
-renderOverview = function() {
-  _renderOverviewOriginal();
-  const scBanner = document.getElementById('ov-sc-banner');
-  if (scBanner && !anyFilialHasSC()) {
-    scBanner.style.display = 'none';
-  }
-};
-
-// ── 7. Patch renderComissao — ocultar seção SC se nenhuma filial tem SC
-const _renderComissaoOriginal = renderComissao;
-renderComissao = function() {
-  _renderComissaoOriginal();
-  const scSection = document.getElementById('comm-sc-section');
-  if (scSection && !anyFilialHasSC()) {
-    scSection.style.display = 'none';
-  }
-};
-
-console.log('[SC-PATCH] Carregado. Corrigido: parser CTRC, anti-lixo rodapé, UI condicional por filial.');
-
 </script>
 </body>
 </html>
