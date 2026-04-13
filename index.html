@@ -749,7 +749,12 @@ const bcl=v=>v>=0?'up':'dn';
 const padM=m=>String(m).padStart(2,'0');
 function decodePeriod(p){const[y,m]=p.split('-');return{year:parseInt(y),month:parseInt(m)};}
 
-function projection(totCur,wdCur){const today=new Date().toISOString().split('T')[0];const elapsed=wdCur.filter(d=>d<today).length;if(elapsed<=0)return 0;return(totCur/elapsed)*wdCur.length;}
+function projection(totCur, wdCur) {
+  const today = new Date().toISOString().split('T')[0];
+  const elapsed = wdCur.filter(d => d < today).length;
+  if (elapsed <= 0) return 0;
+  return (totCur / elapsed) * wdCur.length;
+}
 function proRata(totCur,totPrev,wdCur,wdPrev){const today=new Date().toISOString().split('T')[0];const elapsed=wdCur.filter(d=>d<today).length;if(elapsed<=0||wdPrev.length<=0)return 0;const pr=(totPrev/wdPrev.length)*elapsed;return pr>0?((totCur-pr)/pr*100):0;}
 
   // ══════════════════════════════════════════════════════════
