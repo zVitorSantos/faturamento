@@ -112,8 +112,9 @@ function buildDynamicPanes(){
     const div=document.createElement('div');
     div.className='pane filial-pane';div.id=`pane-filial_${f}`;
     div.innerHTML=`
-      <div class="sec-hdr">
+      <div class="sec-hdr" style="flex-wrap:wrap;gap:10px">
         <div class="sec-title"><span class="dot"></span> <span id="title-${pfx}">Filial ${f}</span> — <span id="lbl-${pfx}">—</span></div>
+        <div class="filial-fresh" id="fresh-${pfx}"></div>
       </div>
       <div id="${pfx}-nodata" class="empty" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -164,7 +165,7 @@ function buildDynamicPanes(){
                 <th onclick="srt('tbl-${pfx}',7)">Volumes</th>
                 <th onclick="srt('tbl-${pfx}',8)">Ant. equiv.</th>
                 <th onclick="srt('tbl-${pfx}',9)">Δ%</th>
-                <th title="Clientes novos/retorno">👁</th>
+                <th title="Clientes novos/retorno">Clientes</th>
                 <th title="SC do dia" style="color:var(--sc)">SC↕</th>
               </tr></thead>
               <tbody id="body-${pfx}"></tbody>
@@ -201,6 +202,127 @@ function rebuildOverviewFilialKPIs(){
 }
 
 function applyBranchLabels(){if($('hdr-filiais-sub')&&STATE.filiais.length>0)$('hdr-filiais-sub').textContent=STATE.filiais.join(' · ');}
+
+// ══════════════════════════════════════════════════════════
+//  FRESHNESS — última atualização por filial/source × esperado
+// ══════════════════════════════════════════════════════════
+function lastWorkingDayOnOrBefore(iso){
+  // assume iso = 'YYYY-MM-DD', retorna o último dia útil <= iso
+  const d=new Date(iso+'T12:00:00');
+  while(true){
+    const dow=d.getDay();
+    const isoCur=d.toISOString().slice(0,10);
+    const monthDay=isoCur.slice(5);
+    const varH=VAR_HOL[d.getFullYear()]||[];
+    if(dow>0&&dow<6&&!FIXED_HOL.includes(monthDay)&&!varH.includes(isoCur))return isoCur;
+    d.setDate(d.getDate()-1);
+  }
+}
+
+function diffWorkingDays(fromIso,toIso){
+  if(!fromIso||!toIso||fromIso>=toIso)return 0;
+  const out=[];const d=new Date(fromIso+'T12:00:00');d.setDate(d.getDate()+1);
+  const end=new Date(toIso+'T12:00:00');
+  while(d<=end){
+    const dow=d.getDay();const iso=d.toISOString().slice(0,10);const monthDay=iso.slice(5);
+    const varH=VAR_HOL[d.getFullYear()]||[];
+    if(dow>0&&dow<6&&!FIXED_HOL.includes(monthDay)&&!varH.includes(iso))out.push(iso);
+    d.setDate(d.getDate()+1);
+  }
+  return out.length;
+}
+
+function computeFreshnessStatus(){
+  const today=new Date().toISOString().slice(0,10);
+  const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);})();
+  const expected=lastWorkingDayOnOrBefore(yesterday);
+  const curPeriod=STATE.periods[STATE.periods.length-1];
+  const data=curPeriod?STATE.cache[curPeriod]:null;
+  const out={expected,today,byFilial:{}};
+  STATE.filiais.forEach(f=>{
+    const sources={carteira:null,extra:null,sc:null};
+    if(data){
+      data.cur.filter(a=>a.filial===f).forEach(a=>{if(a.data<=today&&(!sources[a.source]||a.data>sources[a.source]))sources[a.source]=a.data;});
+      (data.sc||[]).filter(a=>a.filial===f).forEach(a=>{if(a.data<=today&&(!sources.sc||a.data>sources.sc))sources.sc=a.data;});
+    }
+    const sourcesPresent=Object.entries(sources).filter(([,v])=>v).map(([k])=>k);
+    const hasSC=filialHasSC(f);
+    // worst-case: source mais defasado
+    const reportSources=['carteira','extra'];if(hasSC)reportSources.push('sc');
+    let worstGap=0,worstSource=null;
+    reportSources.forEach(s=>{
+      if(!sources[s]){worstGap=Math.max(worstGap,99);worstSource=worstSource||s;return;}
+      const gap=diffWorkingDays(sources[s],expected);
+      if(gap>worstGap){worstGap=gap;worstSource=s;}
+    });
+    let status='ok';
+    if(worstGap===0)status='ok';
+    else if(worstGap===1)status='warn';
+    else status='late';
+    out.byFilial[f]={sources,worstGap,worstSource,status,sourcesPresent,hasSC};
+  });
+  STATE.freshness=out;
+  return out;
+}
+
+const ICONS={
+  check:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  warn:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  alert:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  refresh:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+  folder:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  users:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  trend:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+  calendar:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  cash:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  bolt:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  chart:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  search:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  download:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  bell:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+  trophy:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>'
+};
+
+function freshnessChipHTML(f,info){
+  const colorMap={ok:'var(--success)',warn:'var(--warning)',late:'var(--danger)'};
+  const bgMap={ok:'rgba(16,185,129,.12)',warn:'rgba(245,158,11,.14)',late:'rgba(239,68,68,.14)'};
+  const ic=info.status==='ok'?ICONS.check:info.status==='warn'?ICONS.warn:ICONS.alert;
+  const expectedFmt=info.sources.carteira||info.sources.extra?fd(STATE.freshness.expected):'—';
+  let txt;
+  if(info.status==='ok')txt=`atualizado até ${expectedFmt}`;
+  else if(info.worstSource&&!info.sources[info.worstSource])txt=`${info.worstSource} sem dados`;
+  else txt=`${info.worstSource} ${info.worstGap}d atrás`;
+  return `<span class="fresh-chip" style="background:${bgMap[info.status]};color:${colorMap[info.status]};border:1px solid ${colorMap[info.status]}33"><span style="display:inline-flex;align-items:center">${ic}</span><strong style="margin-left:5px">${f}</strong><span style="margin-left:6px;font-weight:600">${txt}</span></span>`;
+}
+
+function renderFreshnessBanner(){
+  if(!STATE.filiais.length||!STATE.freshness)return;
+  let banner=$('freshness-banner');
+  if(!banner){
+    banner=document.createElement('div');
+    banner.id='freshness-banner';
+    banner.className='fresh-banner';
+    const content=document.querySelector('.content');
+    if(content)content.insertBefore(banner,content.firstChild);
+  }
+  const expected=STATE.freshness.expected;
+  const list=STATE.filiais.map(f=>freshnessChipHTML(f,STATE.freshness.byFilial[f]||{status:'late',worstGap:99})).join('');
+  const allOk=STATE.filiais.every(f=>STATE.freshness.byFilial[f]?.status==='ok');
+  const headerColor=allOk?'var(--success)':'var(--warning)';
+  banner.innerHTML=`
+    <div class="fresh-banner-hdr">
+      <div class="fresh-banner-ttl">
+        <span style="color:${headerColor}">${allOk?ICONS.check:ICONS.warn}</span>
+        <span>Status dos arquivos</span>
+        <span class="fresh-banner-sub">esperado: ${fd(expected)} (último dia útil)</span>
+      </div>
+      <button class="fresh-refresh-btn" onclick="checkAndReloadIfChanged(false)" title="Recarregar">
+        ${ICONS.refresh}<span>Atualizar</span>
+      </button>
+    </div>
+    <div class="fresh-chips">${list}</div>
+  `;
+}
 
 document.addEventListener('DOMContentLoaded',()=>{
   const y=new Date().getFullYear();
@@ -341,91 +463,231 @@ async function tryAutoOpenFolder(){
   }
 }
 
-// Monitoramento de modificações de arquivos
-let fileModDates={};
-let checkModInterval=null;
+// Monitoramento por foco — mais barato que polling 5s
+let fileModDates={};let _refocusBound=false;
 
-async function updateFileModDates(){
-  if(!STATE.rootDir)return;
-  const newDates={};
-  for(const p of STATE.periods){
-    const{year,month}=decodePeriod(p);
-    try{
-      const yearHandle=await STATE.rootDir.getDirectoryHandle(year.toString());
-      const monthHandle=await yearHandle.getDirectoryHandle(padM(month));
-      for await(const[fname,fHandle]of monthHandle.entries()){
-        if(fHandle.kind==='file'){
-          const file=await fHandle.getFile();
-          newDates[`${year}/${padM(month)}/${fname}`]=file.lastModified;
-        }
-      }
-    }catch(e){}
-  }
-  return newDates;
-}
-
-async function checkFileModifications(){
-  if(!STATE.rootDir)return;
-  const newDates=await updateFileModDates();
-  let hasChanges=false;
-  for(const[key,newMod]of Object.entries(newDates)){
-    if(fileModDates[key]!==newMod){
-      hasChanges=true;
-      break;
+async function snapshotFileModDates(){
+  if(!STATE.rootDir)return{};
+  const out={};
+  async function walk(dir,path){
+    for await(const[name,h]of dir.entries()){
+      if(h.kind==='file'){if(classifyFile(name)){const f=await h.getFile();out[`${path}/${name}`]=f.lastModified;}}
+      else if(h.kind==='directory'&&!/^historico$/i.test(name)){await walk(h,`${path}/${name}`);}
     }
   }
-  if(hasChanges){
-    fileModDates=newDates;
-    toast('Arquivos modificados. Recarregando dados...','ok');
-    await scanAllPeriods();
+  try{await walk(STATE.rootDir,'');}catch(e){}
+  return out;
+}
+
+async function checkAndReloadIfChanged(silent=false){
+  if(!STATE.rootDir||STATE._reloading)return;
+  const cur=await snapshotFileModDates();
+  const keys=new Set([...Object.keys(cur),...Object.keys(fileModDates)]);
+  let changed=false;
+  for(const k of keys){if(cur[k]!==fileModDates[k]){changed=true;break;}}
+  if(changed){
+    fileModDates=cur;
+    if(!silent)toast('Arquivos atualizados. Recarregando...','ok');
+    STATE._reloading=true;
+    try{await scanAllPeriods({preserveTab:true});}finally{STATE._reloading=false;}
   }
 }
 
 function startFileMonitoring(){
-  if(checkModInterval)clearInterval(checkModInterval);
-  updateFileModDates().then(dates=>{fileModDates=dates;});
-  checkModInterval=setInterval(checkFileModifications,5000);
+  snapshotFileModDates().then(d=>{fileModDates=d;});
+  if(_refocusBound)return;_refocusBound=true;
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkAndReloadIfChanged(true);});
+  window.addEventListener('focus',()=>checkAndReloadIfChanged(true));
 }
 
-function stopFileMonitoring(){
-  if(checkModInterval)clearInterval(checkModInterval);
-  checkModInterval=null;
+function stopFileMonitoring(){/* noop — eventos persistem */}
+
+// Walker recursivo — encontra arquivos XLS em qualquer profundidade.
+// Infere ano/mês via caminho (preferência) ou nome do arquivo.
+// Retorna: { byPeriod: {YYYY-MM: [{handle,name,info,year,month}], ...}, allYears: Set, structureMode }
+async function discoverAllFiles(){
+  const collected=[];
+  async function walk(dir,segments){
+    let entries;
+    try{entries=[];for await(const e of dir.entries())entries.push(e);}catch(e){return;}
+    const fileTasks=[];
+    for(const[name,h]of entries){
+      if(h.kind==='file'){
+        const info=classifyFile(name);
+        if(!info)continue;
+        fileTasks.push({handle:h,name,info,segments:[...segments]});
+      }else if(h.kind==='directory'){
+        if(/^historico$/i.test(name))continue;
+        await walk(h,[...segments,name]);
+      }
+    }
+    collected.push(...fileTasks);
+  }
+  await walk(STATE.rootDir,[]);
+  return collected;
 }
 
-async function scanAllPeriods(){
-  showLoading('Varrendo pastas...');const periods=new Set();
-  try{STATE.historyDir=await STATE.rootDir.getDirectoryHandle('historico',{create:false});}catch(e){STATE.historyDir=null;}
-  for await(const[yearStr,yearHandle]of STATE.rootDir.entries()){
-    if(yearHandle.kind!=='directory')continue;if(yearStr==='historico')continue;
-    const year=parseInt(yearStr);if(isNaN(year)||year<2020||year>2040)continue;
-    for await(const[monthStr,monthHandle]of yearHandle.entries()){
-      if(monthHandle.kind!=='directory')continue;const month=parseInt(monthStr);if(isNaN(month)||month<1||month>12)continue;
-      let hasFile=false;
-      for await(const[fname,fHandle]of monthHandle.entries()){if(fHandle.kind==='file'&&classifyFile(fname)){hasFile=true;break;}if(fHandle.kind==='directory'){for await(const[subFname]of fHandle.entries()){if(classifyFile(subFname)){hasFile=true;break;}}if(hasFile)break;}}
-      if(hasFile)periods.add(`${year}-${padM(month)}`);
+// Infere {year,month} do caminho de pastas. Retorna null se não conseguir.
+function inferYearMonthFromPath(segments){
+  let year=null,month=null;
+  for(const s of segments){
+    const n=parseInt(s,10);
+    if(!isNaN(n)){
+      if(n>=2015&&n<=2040)year=n;
+      else if(n>=1&&n<=12&&!month)month=n;
     }
   }
-  if(periods.size===0){hideLoading();toast('Nenhum mês com arquivos XLS encontrado.','err');return;}
-  const sorted=[...periods].sort();const latestYear=Math.max(...sorted.map(p=>decodePeriod(p).year));
-  STATE.periods=sorted.filter(p=>decodePeriod(p).year===latestYear);
+  return{year,month};
+}
+
+async function scanAllPeriods(opts={}){
+  const preserveTab=!!opts.preserveTab;
+  const prevActiveTab=preserveTab?(document.querySelector('.tab.active')?.id||null):null;
+  const prevPeriodKey=preserveTab&&STATE.periods[STATE.curIdx]?STATE.periods[STATE.curIdx]:null;
+
+  showLoading('Varrendo pastas...');
+  try{STATE.historyDir=await STATE.rootDir.getDirectoryHandle('historico',{create:false});}catch(e){STATE.historyDir=null;}
+
+  const allFiles=await discoverAllFiles();
+  if(!allFiles.length){hideLoading();toast('Nenhum arquivo XLS reconhecido encontrado.','err');return;}
+
+  // Agrupa por (year,month). Quando ano/mês não vem do path, lê o XLS para descobrir pela maior data.
+  const groups=new Map(); // key: "YYYY-MM" → array<filehandle entry>
+  const needsContentInference=[];
+  for(const f of allFiles){
+    const{year,month}=inferYearMonthFromPath(f.segments);
+    if(year&&month){
+      const k=`${year}-${padM(month)}`;
+      f.year=year;f.month=month;
+      if(!groups.has(k))groups.set(k,[]);
+      groups.get(k).push(f);
+    }else{
+      needsContentInference.push(f);
+    }
+  }
+
+  // Para arquivos sem ano/mês no path, leitura prévia para inferir do conteúdo
+  if(needsContentInference.length){
+    showLoading('Identificando períodos...',`${needsContentInference.length} arquivo(s) sem ano/mês no caminho`,5);
+    const inferred=await Promise.all(needsContentInference.map(async f=>{
+      const recs=await parseXLS(f.handle,f.info.filial,f.info.source,new Date().getFullYear(),f.name);
+      // pega data mais frequente por mês
+      const monthCount={};
+      recs.forEach(r=>{const k=r.data.slice(0,7);monthCount[k]=(monthCount[k]||0)+1;});
+      const best=Object.entries(monthCount).sort((a,b)=>b[1]-a[1])[0];
+      if(!best)return null;
+      const[y,m]=best[0].split('-').map(Number);
+      return{f,year:y,month:m,records:recs};
+    }));
+    inferred.filter(Boolean).forEach(({f,year,month})=>{
+      const k=`${year}-${padM(month)}`;
+      f.year=year;f.month=month;
+      if(!groups.has(k))groups.set(k,[]);
+      groups.get(k).push(f);
+    });
+  }
+
+  if(!groups.size){hideLoading();toast('Não consegui identificar nenhum período (ano/mês) nos arquivos.','err');return;}
+
+  const sortedKeys=[...groups.keys()].sort();
+  const latestYear=Math.max(...sortedKeys.map(k=>parseInt(k.slice(0,4))));
+  STATE.periods=sortedKeys.filter(k=>parseInt(k.slice(0,4))===latestYear);
   STATE.cache={};STATE.curIdx=STATE.periods.length-1;
-  const apEl=$('ap');apEl.innerHTML='<option value="">Todos</option>';
-  sorted.forEach(p=>{const{year,month}=decodePeriod(p);const opt=document.createElement('option');opt.value=p;opt.textContent=`${MONTHS[month].substring(0,3)} ${year}`;apEl.appendChild(opt);});
+  STATE._allGroups=groups;
+
+  const apEl=$('ap');if(apEl){apEl.innerHTML='<option value="">Todos</option>';sortedKeys.forEach(p=>{const{year,month}=decodePeriod(p);const opt=document.createElement('option');opt.value=p;opt.textContent=`${MONTHS[month].substring(0,3)} ${year}`;apEl.appendChild(opt);});}
+
   $('pane-welcome').classList.remove('active');$('main-tabs').style.display='flex';$('period-nav').style.display='flex';$('hdr-status').style.display='inline';$('open-btn-lbl').textContent='Recarregar';
-  const total=STATE.periods.length;let loaded=0;
-  for(const p of STATE.periods){const{year:cy,month:mo}=decodePeriod(p);showLoading(`Lendo ${total} mês${total>1?'es':''}...`,`${MONTHS[mo]} ${cy} • ${loaded+1} de ${total}`,Math.round((loaded/total)*100));STATE.cache[p]=await loadPeriodData(cy,cy-1,mo);loaded++;showLoading(`Lendo ${total} mês${total>1?'es':''}...`,`${MONTHS[mo]} ${cy} • ${loaded} de ${total}`,Math.round((loaded/total)*100));}
-  showLoading('Lendo histórico...','Calculando métricas históricas...',98);await loadHistory();
+
+  // Paraleliza leitura de períodos do ano corrente
+  const total=STATE.periods.length;
+  showLoading(`Lendo ${total} mês${total>1?'es':''}...`,'Em paralelo',10);
+  let done=0;
+  await Promise.all(STATE.periods.map(async p=>{
+    const{year,month}=decodePeriod(p);
+    STATE.cache[p]=await loadPeriodFromGroup(groups.get(p)||[],year,month);
+    done++;
+    showLoading(`Lendo ${total} mês${total>1?'es':''}...`,`${done} de ${total} concluídos`,Math.round(10+(done/total)*80));
+  }));
+
+  showLoading('Lendo histórico...','Calculando métricas históricas...',92);
+  await loadHistoryFromGroups(groups,latestYear);
   hideLoading();
-  toast(`✅ ${loaded} mês(es) carregados${Object.keys(STATE.history||{}).length?' + histórico':''}${countSCTotal()>0?' + SC':''}`, 'ok');
+
+  toast(`${done} mês(es) carregados${Object.keys(STATE.history||{}).length?' + histórico':''}${countSCTotal()>0?' + SC':''}`,'ok');
   saveLastPeriod();
   discoverFiliaisFromData();buildDynamicTabs();buildDynamicPanes();applyBranchLabels();
+  computeFreshnessStatus();renderFreshnessBanner();
   renderIntelFreteAnalysis();renderIntelTopClientes();
   const ovTab=document.querySelector('.tab[onclick*="overview"]');if(ovTab)ovTab.style.display=STATE.filiais.length<=1?'none':'';
-  rebuildAllAWBIndex();computeAnnualProjection();await loadAndRender();
+  rebuildAllAWBIndex();computeAnnualProjection();
+
+  // Restaurar período/aba anterior
+  if(prevPeriodKey&&STATE.periods.includes(prevPeriodKey))STATE.curIdx=STATE.periods.indexOf(prevPeriodKey);
+  await loadAndRender();
   startFileMonitoring();
+
   $$('.tab').forEach(t=>t.classList.remove('active'));$$('.pane').forEach(p=>p.classList.remove('active'));
-  if(STATE.filiais.length===1){const f=STATE.filiais[0];const tab=$(`tab-${f.toLowerCase()}`);const pane=$(`pane-filial_${f}`);if(tab)tab.classList.add('active');if(pane){pane.classList.add('active');renderPane('filial_'+f);}}
+  if(prevActiveTab&&$(prevActiveTab)){
+    const tab=$(prevActiveTab);tab.classList.add('active');
+    const pane=$(prevActiveTab.replace(/^tab-/,'pane-')) || (tab.getAttribute('onclick')?.match(/'([^']+)'/)?.[1]?$(`pane-${tab.getAttribute('onclick').match(/'([^']+)'/)[1]}`):null);
+    if(pane){pane.classList.add('active');renderPane(pane.id.replace('pane-',''));}
+  }else if(STATE.filiais.length===1){const f=STATE.filiais[0];const tab=$(`tab-${f.toLowerCase()}`);const pane=$(`pane-filial_${f}`);if(tab)tab.classList.add('active');if(pane){pane.classList.add('active');renderPane('filial_'+f);}}
   else{const ot=document.querySelector('.tab[onclick*="overview"]');if(ot)ot.classList.add('active');const op=$('pane-overview');if(op){op.classList.add('active');renderPane('overview');}}
+}
+
+// Lê todos arquivos de um período em paralelo
+async function loadPeriodFromGroup(filesInGroup,year,month){
+  if(!filesInGroup||!filesInGroup.length){
+    // pode ainda querer carregar comparativo prev — preserva fluxo antigo
+    const prevDir=await getMonthDir(year-1,padM(month));
+    const prev=prevDir?await readDirAWBs(prevDir,year-1):await readAnnualYearAWBs(year-1,month);
+    return{cur:[],prev,sc:[]};
+  }
+  const results=await Promise.all(filesInGroup.map(f=>parseXLS(f.handle,f.info.filial,f.info.source,year,f.name)));
+  const all=results.flat();
+  const cur=all.filter(a=>a.source!=='sc'&&a.source!=='neg');
+  const sc=all.filter(a=>a.source==='sc');
+  // Comparativo do mesmo mês ano anterior
+  const prevDir=await getMonthDir(year-1,padM(month));
+  let prev=prevDir?await readDirAWBs(prevDir,year-1):[];
+  if(!prev.length){
+    // tenta achar no allGroups o mesmo mês ano anterior
+    const prevKey=`${year-1}-${padM(month)}`;
+    const prevGroup=STATE._allGroups?.get(prevKey);
+    if(prevGroup&&prevGroup.length){
+      const prevResults=await Promise.all(prevGroup.map(f=>parseXLS(f.handle,f.info.filial,f.info.source,year-1,f.name)));
+      prev=prevResults.flat().filter(a=>a.source!=='sc');
+    }else{
+      prev=await readAnnualYearAWBs(year-1,month);
+    }
+  }
+  // registrar SC
+  if(!STATE.scFiliais)STATE.scFiliais=new Set();
+  sc.forEach(a=>STATE.scFiliais.add(a.filial));
+  return{cur,prev,sc};
+}
+
+async function loadHistoryFromGroups(groups,latestYear){
+  const raw={};
+  const prevYears=new Set();
+  for(const[k,files]of groups.entries()){
+    const y=parseInt(k.slice(0,4));
+    if(y===latestYear)continue;
+    prevYears.add(y);
+    const results=await Promise.all(files.map(f=>parseXLS(f.handle,f.info.filial,f.info.source,y,f.name)));
+    results.flat().forEach(a=>{const mo=parseInt((a.data||'').slice(5,7));if(!mo||mo<1||mo>12)return;if(!raw[a.filial])raw[a.filial]={};if(!raw[a.filial][y])raw[a.filial][y]={};raw[a.filial][y][mo]=(raw[a.filial][y][mo]||0)+a.valor_frete;});
+  }
+  // historicoDir antigo
+  if(STATE.historyDir){
+    for await(const[yearStr,yearHandle]of STATE.historyDir.entries()){
+      if(yearHandle.kind!=='directory')continue;const year=parseInt(yearStr);if(isNaN(year)||year<2015||year>2040)continue;if(prevYears.has(year))continue;
+      const yearAWBs=await readAnnualAllMonths(yearHandle,year);
+      yearAWBs.forEach(a=>{const mo=parseInt((a.data||'').slice(5,7));if(!mo||mo<1||mo>12)return;if(!raw[a.filial])raw[a.filial]={};if(!raw[a.filial][year])raw[a.filial][year]={};raw[a.filial][year][mo]=(raw[a.filial][year][mo]||0)+a.valor_frete;});
+    }
+  }
+  STATE.history={};
+  Object.keys(raw).forEach(filial=>{STATE.history[filial]=computeFilialHistory(filial,raw[filial]);});
 }
 
 function countSCTotal(){let t=0;Object.values(STATE.cache).forEach(d=>{if(d.sc)t+=d.sc.length;});return t;}
@@ -471,12 +733,13 @@ async function loadPeriodData(curYear,prevYear,month){
 //  PARSE XLS
 // ══════════════════════════════════════════════════════════
 async function readDirAWBs(dirHandle,year){
-  const all=[];
+  // Coleta tarefas e dispara em paralelo
+  const tasks=[];
   for await(const[name,handle]of dirHandle.entries()){
-    if(handle.kind==='file'){const info=classifyFile(name);if(!info)continue;const recs=await parseXLS(handle,info.filial,info.source,year,name);all.push(...recs);}
-    else if(handle.kind==='directory'){for await(const[subName,subHandle]of handle.entries()){if(subHandle.kind!=='file')continue;const info=classifyFile(subName);if(!info)continue;const recs=await parseXLS(subHandle,info.filial,info.source,year,subName);all.push(...recs);}}
+    if(handle.kind==='file'){const info=classifyFile(name);if(!info)continue;tasks.push(parseXLS(handle,info.filial,info.source,year,name));}
+    else if(handle.kind==='directory'){for await(const[subName,subHandle]of handle.entries()){if(subHandle.kind!=='file')continue;const info=classifyFile(subName);if(!info)continue;tasks.push(parseXLS(subHandle,info.filial,info.source,year,subName));}}
   }
-  return all;
+  return(await Promise.all(tasks)).flat();
 }
 
 function pNum(v){return parseFloat(String(v||'').replace(',','.'))||0;}
@@ -648,6 +911,24 @@ function renderFilial(filial){
   const pVal=proRata(sCur.total,sPrev.total,_wdC,_wdP);const projPct=sPrev.total>0?(proj/sPrev.total*100):0;const prog=sPrev.total>0?Math.min(sCur.total/sPrev.total*100,100):0;
 
   if($(`lbl-${pfx}`))$(`lbl-${pfx}`).textContent=`${MONTHS[_mo]} ${_curY}`;
+  // Status de freshness por source da filial
+  const freshEl=$(`fresh-${pfx}`);
+  if(freshEl&&STATE.freshness){
+    const info=STATE.freshness.byFilial[filial];
+    if(info){
+      const items=[];
+      const srcLabels={carteira:'Carteira',extra:'Extra',sc:'SC'};
+      ['carteira','extra'].concat(info.hasSC?['sc']:[]).forEach(s=>{
+        const last=info.sources[s];
+        if(!last){items.push(`<span class="filial-fresh-item late">${srcLabels[s]}: sem arquivo</span>`);return;}
+        const gap=diffWorkingDays(last,STATE.freshness.expected);
+        const cls=gap===0?'ok':gap===1?'warn':'late';
+        const ic=cls==='ok'?ICONS.check:cls==='warn'?ICONS.warn:ICONS.alert;
+        items.push(`<span class="filial-fresh-item ${cls}">${ic}<span>${srcLabels[s]}: ${fd(last)}${gap>0?` (-${gap}d)`:''}</span></span>`);
+      });
+      freshEl.innerHTML=items.join('');
+    }
+  }
 
   // KPIs
   set(`${pfx}-tot`,R$(sCur.total),`color:${color}`);bb(`${pfx}-badge`,pct(pVal)+` vs ${_prevY}`,bcl(pVal));
@@ -743,7 +1024,7 @@ function renderIntel(){
     set('intel-proj-total',R$(cons.projectedTotal));set('intel-realizado',R$(cons.realizadoAteHoje));set('intel-dias-real',Object.values(proj.byFilial).reduce((s,v)=>Math.max(s,v.diasRealizados||0),0)+' dias úteis');
     // SC total anual
     const scAnual=Object.values(proj.byFilial).reduce((s,v)=>s+(v.scPotencial||0),0);if($('intel-sc-total'))set('intel-sc-total',scAnual>0?R$(scAnual):'—');
-    const confLabel={conservador:'🟡 Conservador',realista:'🟢 Realista',agressivo:'🔴 Agressivo',historico:'⚪ Referência Histórica'};const confColor={conservador:'rgba(245,158,11,.18)',realista:'rgba(16,185,129,.18)',agressivo:'rgba(239,68,68,.18)',historico:'rgba(100,116,139,.18)'};const confText={conservador:'var(--warning)',realista:'var(--success)',agressivo:'var(--danger)',historico:'var(--text2)'};
+    const confLabel={conservador:'Conservador',realista:'Realista',agressivo:'Agressivo',historico:'Referência Histórica'};const confColor={conservador:'rgba(245,158,11,.18)',realista:'rgba(16,185,129,.18)',agressivo:'rgba(239,68,68,.18)',historico:'rgba(100,116,139,.18)'};const confText={conservador:'var(--warning)',realista:'var(--success)',agressivo:'var(--danger)',historico:'var(--text2)'};
     const cEl=$('intel-confidence-badge');if(cEl){cEl.textContent=confLabel[cons.confidence]||cons.confidence;cEl.style.background=confColor[cons.confidence]||confColor.realista;cEl.style.color=confText[cons.confidence]||confText.realista;}
     const subEl=$('intel-proj-sub');if(subEl){const curY=decodePeriod(STATE.periods[0]).year;subEl.textContent=`Estimativa para o ano completo de ${curY}`;}
   }
@@ -1152,7 +1433,6 @@ function renderComissao(){
       <td style="color:var(--gold)">TOTAL ANO</td>
       <td style="text-align:right;font-family:var(--mono)">${R$(totFOB)}</td>
       <td style="text-align:right;font-family:var(--mono)">${R$(totCIF)}</td>
-      <td style="text-align:right;font-family:var(--mono)">${R$(totGer)}</td>
       <td style="text-align:right;font-family:var(--mono);color:var(--gold);font-size:15px">${R$(totMy)}</td>
       <td style="text-align:right;font-family:var(--mono);color:var(--sc)">${totSCBase>0?R$(totSCBase):'—'}</td>
       <td style="text-align:right;font-family:var(--mono);color:var(--warning)">${totSCMy>0?R$(totSCMy):'—'}</td>`;
@@ -1434,4 +1714,245 @@ function anyFilialHasSC() {
 // ── 5. Patch renderFilial — ocultar/mostrar seções SC ─────────
 // Guarda a função original e envolve com lógica condicional SC
 
-console.log('[SC-PATCH] Carregado. Corrigido: parser CTRC, anti-lixo rodapé, UI condicional por filial.');
+console.log('[FRT] Carregado. Parser CTRC, freshness, pagadores por filial.');
+
+// ══════════════════════════════════════════════════════════
+//  ONDA 4 — PAGADORES NOVOS/RETORNO: ABA DEDICADA POR FILIAL
+// ══════════════════════════════════════════════════════════
+
+// Estado do painel de pagadores
+const PAYER_STATE={};
+
+// Injeta sub-aba Pagadores + container no pane de cada filial
+function injectPayersTabIntoFilialPane(f){
+  const pfx=f.toLowerCase();
+  const dataEl=$(pfx+'-data');if(!dataEl)return;
+  if($(`payer-panel-${pfx}`))return; // já injetado
+
+  // Sub-abas (Faturamento | Pagadores)
+  const subtabsDiv=document.createElement('div');
+  subtabsDiv.className='subtabs';
+  subtabsDiv.style.marginBottom='0';
+  subtabsDiv.innerHTML=`
+    <div class="subtab active" id="stab-fat-${pfx}" onclick="switchFilialTab('fat','${pfx}')">Faturamento</div>
+    <div class="subtab" id="stab-pay-${pfx}" onclick="switchFilialTab('pay','${pfx}')">Pagadores</div>`;
+
+  // Wrapper para faturamento (conteúdo original)
+  const fatWrap=document.createElement('div');
+  fatWrap.id=`fat-panel-${pfx}`;
+  // Mover conteúdo original para dentro do wrapper
+  while(dataEl.firstChild)fatWrap.appendChild(dataEl.firstChild);
+
+  // Container do painel de pagadores
+  const payPanel=document.createElement('div');
+  payPanel.id=`payer-panel-${pfx}`;
+  payPanel.style.display='none';
+  payPanel.innerHTML=buildPayerPanelHTML(f,pfx);
+
+  dataEl.appendChild(subtabsDiv);
+  dataEl.appendChild(fatWrap);
+  dataEl.appendChild(payPanel);
+}
+
+function buildPayerPanelHTML(f,pfx){
+  return `
+  <div style="margin-top:18px">
+    <!-- KPI summary row -->
+    <div class="payer-day-grid" id="pay-kpi-${pfx}"></div>
+    <!-- Day selector -->
+    <div class="tbl-card">
+      <div class="tbl-top" style="gap:10px;flex-wrap:wrap">
+        <div class="tbl-top-ttl">${ICONS.users} Pagadores por Dia — ${f}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select class="inp" id="pay-filter-cat-${pfx}" onchange="renderPayerDayList('${pfx}')" style="font-size:12px">
+            <option value="">Todos os dias</option>
+            <option value="new">Com novos</option>
+            <option value="ret">Com retorno</option>
+          </select>
+          <input class="inp" id="pay-search-${pfx}" placeholder="filtrar cliente/CNPJ..." oninput="filterPayerDetail('${pfx}')" style="font-size:12px;min-width:160px">
+          <button class="btn btn-s" onclick="exportPayerCSV('${pfx}')" style="font-size:11px">${ICONS.download} CSV</button>
+        </div>
+      </div>
+      <div class="payer-day-head">
+        <div>Data</div><div>Pagador</div><div>AWBs</div><div>Frete</div><div>Status</div><div>Visto antes</div>
+      </div>
+      <div id="pay-day-list-${pfx}" style="max-height:480px;overflow-y:auto"></div>
+    </div>
+  </div>`;
+}
+
+function switchFilialTab(tab,pfx){
+  const fatPanel=$(`fat-panel-${pfx}`);
+  const payPanel=$(`payer-panel-${pfx}`);
+  const stabFat=$(`stab-fat-${pfx}`);
+  const stabPay=$(`stab-pay-${pfx}`);
+  if(!fatPanel||!payPanel)return;
+  const isFat=tab==='fat';
+  fatPanel.style.display=isFat?'':'none';
+  payPanel.style.display=isFat?'none':'';
+  stabFat?.classList.toggle('active',isFat);
+  stabPay?.classList.toggle('active',!isFat);
+  if(!isFat&&!PAYER_STATE[pfx]?.built)buildPayerPanelData(pfx);
+}
+
+// Constrói os dados de pagadores para um pfx de filial
+function buildPayerPanelData(pfx){
+  const filial=pfx.toUpperCase();
+  if(!_data||!Object.keys(ALL_REM_DATES).length)rebuildAllAWBIndex();
+
+  // Coleta AWBs de todos os períodos para essa filial
+  const allFilialAWBs=[];
+  Object.values(STATE.cache).forEach(d=>{
+    allFilialAWBs.push(...d.cur.filter(a=>a.filial===filial));
+  });
+
+  // Por dia útil do mês atual
+  const byDay={};
+  _wdC.forEach(dt=>{
+    const dayAWBs=allFilialAWBs.filter(a=>a.data===dt);
+    if(!dayAWBs.length)return;
+    const clients={};
+    dayAWBs.forEach(a=>{
+      const payer=freightPayerInfo(a);
+      const k=normRem(payer.nome);
+      if(!k)return;
+      if(!clients[k])clients[k]={pagador:payer.nome,cnpj:payer.cnpj||'',tipoFrete:payer.tipo,papel:payer.papel,awbs:[],totalFrete:0};
+      clients[k].awbs.push(a.awb);
+      clients[k].totalFrete+=a.valor_frete;
+    });
+    const entries=Object.entries(clients).map(([k,g])=>{
+      const cat=clientCategory(k,dt);
+      const dates=ALL_REM_DATES[k]||[];
+      const before=dates.filter(d=>d<dt);
+      const lastDate=before.length?before[before.length-1]:null;
+      return{...g,cat,lastDate,normKey:k,date:dt};
+    });
+    byDay[dt]={entries,newCount:entries.filter(e=>e.cat==='new').length,retCount:entries.filter(e=>e.cat==='ret').length,totalFrete:dayAWBs.reduce((s,a)=>s+a.valor_frete,0),awbCount:dayAWBs.length};
+  });
+
+  PAYER_STATE[pfx]={byDay,built:true,filial};
+
+  // KPIs
+  const totNew=Object.values(byDay).reduce((s,d)=>s+d.newCount,0);
+  const totRet=Object.values(byDay).reduce((s,d)=>s+d.retCount,0);
+  const daysWithNew=Object.values(byDay).filter(d=>d.newCount>0).length;
+  const kpiEl=$(`pay-kpi-${pfx}`);
+  if(kpiEl)kpiEl.innerHTML=`
+    <div class="payer-stat new"><div class="payer-stat-lbl">${ICONS.users} Clientes Novos<br><span style="font-size:9px;font-weight:400">nunca transportaram</span></div><div class="payer-stat-val" style="color:var(--success)">${totNew}</div><div class="payer-stat-sub">${daysWithNew} dia(s) com novos</div></div>
+    <div class="payer-stat ret"><div class="payer-stat-lbl">${ICONS.trend} Retornaram<br><span style="font-size:9px;font-weight:400">ausentes +90 dias</span></div><div class="payer-stat-val" style="color:var(--accent)">${totRet}</div><div class="payer-stat-sub">${Object.values(byDay).filter(d=>d.retCount>0).length} dia(s) com retorno</div></div>
+    <div class="payer-stat"><div class="payer-stat-lbl">${ICONS.calendar} Dias analisados</div><div class="payer-stat-val">${Object.keys(byDay).length}</div><div class="payer-stat-sub">dias úteis com NFs</div></div>
+    <div class="payer-stat"><div class="payer-stat-lbl">${ICONS.chart} Total pagadores/dia</div><div class="payer-stat-val">${Object.values(byDay).reduce((s,d)=>s+d.entries.length,0)}</div><div class="payer-stat-sub">entradas únicas</div></div>`;
+
+  renderPayerDayList(pfx);
+}
+
+function renderPayerDayList(pfx){
+  const ps=PAYER_STATE[pfx];if(!ps)return;
+  const catFilter=$(`pay-filter-cat-${pfx}`)?.value||'';
+  const container=$(`pay-day-list-${pfx}`);if(!container)return;
+  container.innerHTML='';
+  const today=new Date().toISOString().slice(0,10);
+
+  const dates=Object.keys(ps.byDay).filter(dt=>{
+    if(dt>today)return false;
+    const d=ps.byDay[dt];
+    if(catFilter==='new'&&d.newCount===0)return false;
+    if(catFilter==='ret'&&d.retCount===0)return false;
+    return true;
+  }).sort((a,b)=>b.localeCompare(a));
+
+  if(!dates.length){container.innerHTML='<div style="padding:32px;text-align:center;color:var(--text3)">Nenhum dia com pagadores neste filtro.</div>';return;}
+
+  dates.forEach(dt=>{
+    const d=ps.byDay[dt];
+    // Day group header (clicável para expandir)
+    const hdr=document.createElement('div');
+    hdr.className='payer-day-row tot';
+    hdr.style.cssText='cursor:pointer;user-select:none';
+    const isToday=dt===today;
+    hdr.innerHTML=`
+      <div class="mono" style="font-weight:800;color:var(--text)">${fd(dt)}${isToday?'<span style="margin-left:6px;background:var(--gold);color:#000;padding:1px 5px;border-radius:3px;font-size:9px">HOJE</span>':''}<br><span style="font-size:10px;color:var(--text3);font-weight:400">${dn(dt)}</span></div>
+      <div style="font-size:11px;color:var(--text2)">${d.awbCount} AWBs · ${d.entries.length} pagadores<br><span style="color:var(--success);font-weight:700">${d.newCount} novos</span> · <span style="color:var(--accent);font-weight:700">${d.retCount} retorno</span></div>
+      <div class="mono" style="color:var(--text2)">${d.awbCount}</div>
+      <div class="mono" style="color:var(--accent);font-weight:800">${R$(d.totalFrete)}</div>
+      <div></div><div style="font-size:11px;color:var(--text3)">clique para ver</div>`;
+    const detailDiv=document.createElement('div');
+    detailDiv.style.display='none';
+    detailDiv.dataset.dt=dt;
+    hdr.onclick=()=>{
+      const open=detailDiv.style.display==='none';
+      detailDiv.style.display=open?'':'none';
+      hdr.style.background=open?'rgba(249,115,22,.06)':'';
+      if(open&&!detailDiv.dataset.rendered)renderPayerDayDetail(detailDiv,d,pfx);
+    };
+    container.appendChild(hdr);
+    container.appendChild(detailDiv);
+  });
+}
+
+function renderPayerDayDetail(container,dayData,pfx){
+  container.dataset.rendered='1';
+  const searchQ=($(`pay-search-${pfx}`)?.value||'').trim().toLowerCase();
+  const entries=[...dayData.entries].filter(e=>{
+    if(!searchQ)return true;
+    return (e.pagador||'').toLowerCase().includes(searchQ)||(e.cnpj||'').includes(searchQ);
+  });
+  entries.sort((a,b)=>(a.cat==='new'?0:a.cat==='ret'?1:2)-(b.cat==='new'?0:b.cat==='ret'?1:2));
+  container.innerHTML=entries.map((e,i)=>{
+    const isNew=e.cat==='new';const isRet=e.cat==='ret';
+    const statusHtml=isNew?`<span style="background:rgba(16,185,129,.18);color:var(--success);padding:2px 9px;border-radius:6px;font-size:11px;font-weight:700">Novo</span>`:
+      isRet?`<span style="background:rgba(249,115,22,.18);color:var(--accent);padding:2px 9px;border-radius:6px;font-size:11px;font-weight:700">Retornou</span>`:
+      '<span style="color:var(--text3);font-size:11px">Recorrente</span>';
+    const lastFmt=e.lastDate?new Date(e.lastDate+'T12:00:00').toLocaleDateString('pt-BR'):'1ª vez';
+    const cnpjDisplay=e.cnpj?e.cnpj.replace(/^0+/,'')||e.cnpj:'—';
+    const bg=i%2===0?'':'rgba(255,255,255,.012)';
+    return `<div class="payer-day-row" style="background:${bg}">
+      <div class="mono" style="font-size:11px;color:var(--cyan)">${cnpjDisplay}</div>
+      <div><div style="font-weight:700;font-size:12px">${e.pagador||'—'}</div><div style="font-size:10px;color:var(--text3)">${e.tipoFrete||'N/D'} · ${e.papel||''}</div></div>
+      <div class="mono" style="text-align:center">${e.awbs.length}</div>
+      <div class="mono" style="color:var(--accent);font-weight:800">${R$(e.totalFrete)}</div>
+      <div>${statusHtml}</div>
+      <div style="font-size:11px;color:var(--text2)">${lastFmt}</div>
+    </div>`;
+  }).join('');
+  if(!entries.length)container.innerHTML='<div style="padding:14px 16px;color:var(--text3);font-size:12px">Nenhum resultado para o filtro.</div>';
+}
+
+function filterPayerDetail(pfx){
+  // Re-render open detail divs
+  const container=$(`pay-day-list-${pfx}`);if(!container)return;
+  container.querySelectorAll('[data-rendered]').forEach(div=>{
+    delete div.dataset.rendered;
+    const dt=div.dataset.dt;
+    const ps=PAYER_STATE[pfx];if(!ps||!ps.byDay[dt])return;
+    renderPayerDayDetail(div,ps.byDay[dt],pfx);
+  });
+}
+
+function exportPayerCSV(pfx){
+  const ps=PAYER_STATE[pfx];if(!ps)return;
+  let csv='Data,Dia,CNPJ,Pagador,Tipo Frete,Papel,AWBs,Frete Total,Status,Ultima vez\n';
+  Object.entries(ps.byDay).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([dt,d])=>{
+    d.entries.forEach(e=>{
+      const status=e.cat==='new'?'Novo':e.cat==='ret'?'Retornou':'Recorrente';
+      csv+=`"${dt}","${dn(dt)}","${e.cnpj||''}","${e.pagador}","${e.tipoFrete||''}","${e.papel||''}",${e.awbs.length},${e.totalFrete.toFixed(2)},"${status}","${e.lastDate||''}"\n`;
+    });
+  });
+  const el=document.createElement('a');
+  el.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  el.download=`pagadores_${pfx}_${_curY}-${padM(_mo)}.csv`;
+  el.click();
+}
+
+// Hook renderFilial para injetar sub-abas na primeira renderização
+const _origRenderFilial=renderFilial;
+renderFilial=function(filial){
+  _origRenderFilial(filial);
+  const pfx=filial.toLowerCase();
+  // Injeta sub-abas se ainda não estiver injetado
+  if(!$(`payer-panel-${pfx}`)){
+    injectPayersTabIntoFilialPane(filial);
+  }
+  // Resetar estado (dados podem ter mudado com novo mês)
+  if(PAYER_STATE[pfx])PAYER_STATE[pfx].built=false;
+};

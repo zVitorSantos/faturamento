@@ -62,11 +62,11 @@
     <div class="welcome-desc">Selecione a pasta raiz dos seus dados para começar.<br>O sistema detecta as filiais automaticamente pelos nomes dos arquivos.<br>Use as setas ← → para navegar entre os meses após o carregamento.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px;width:100%">
       <div class="tree-box" style="max-width:none">
-        <h4 style="margin-bottom:10px">📁 Estrutura esperada</h4>
+        <h4 style="margin-bottom:10px;display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Estrutura aceita</h4>
         <div class="tree">
 <span class="dir">/pasta-raiz</span>
 <span class="dir">├── 2026/</span>
-<span class="dir">│ └── 03/</span>
+<span class="dir">│ └── 04/</span>
 <span class="dir">│   └── CSU/</span>
 <span class="f">│     ├── CSU-Carteira.xls</span>
 <span class="f">│     ├── CSU-Extra.xls</span>
@@ -76,14 +76,14 @@
 <span class="f">    ├── CSU-Carteira.xls</span>
 <span class="f">    └── CSU-Extra.xls</span></div>
         <div style="margin-top:10px;font-size:11px;color:var(--text3);line-height:1.9">
-          💡 <strong>Carteira</strong> e <strong>Extra</strong> = faturamento comissionado<br>
-          <span style="color:var(--sc)">▪</span> <strong>SC</strong> = Sem Comissionado — acompanhamento diário<br>
-          Ano atual: <span style="color:var(--cyan);font-family:var(--mono)">AAAA/MM/FILIAL/</span> · Anos ant.: <span style="color:var(--cyan);font-family:var(--mono)">AAAA/FILIAL/</span>
+          <strong style="color:var(--success)">Auto-detecção:</strong> qualquer profundidade de pastas funciona. Se ano/mês não estiverem no caminho, são inferidos do conteúdo.<br>
+          <span style="color:var(--sc)">▪</span> <strong>Carteira</strong> e <strong>Extra</strong> = comissionados · <strong>SC</strong> = Sem Comissionado<br>
+          Padrão de nome de arquivo: <span style="color:var(--cyan);font-family:var(--mono)">FILIAL-Carteira.xls</span>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px">
         <div class="tree-box" style="max-width:none;flex:1">
-          <h4 style="margin-bottom:10px">⚡ Como funciona o SC</h4>
+          <h4 style="margin-bottom:10px;display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Como funciona o SC</h4>
           <div style="font-size:12px;color:var(--text2);line-height:2">
             <div>1. Coloque <span style="color:var(--sc);font-weight:700">FILIAL-SC.xls</span> na mesma pasta</div>
             <div>2. O sistema lê diariamente AWBs não comissionados</div>
@@ -93,13 +93,13 @@
             <div>6. Prioridade: recuperar SC no mês atual para comissão</div>
           </div>
         </div>
-        <button class="btn-big" onclick="openFolder()" style="justify-content:center;font-size:14px">📂 Selecionar pasta raiz</button>
+        <button class="btn-big" onclick="openFolder()" style="justify-content:center;font-size:14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Selecionar pasta raiz</button>
         <div style="font-size:11px;color:var(--text3);text-align:center">Requer Chrome ou Edge</div>
       </div>
     </div>
     <div style="max-width:900px;width:100%;border-top:1px solid var(--border);padding-top:18px;margin-top:4px">
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0" onclick="toggleTemplatePanel()">
-        <div style="font-size:13px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px"><span>🗂</span> Gerar pasta modelo</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Gerar pasta modelo</div>
         <span style="font-size:11px;color:var(--text3)" id="template-toggle-lbl">▼ expandir</span>
       </div>
       <div id="template-panel" style="display:none;margin-top:14px">
@@ -113,7 +113,7 @@
           <div class="fg"><label class="lbl">Sigla filial</label><input class="inp" id="cfg-example-filial" placeholder="Ex: CSU" maxlength="10"></div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <button class="btn-big" onclick="generateTemplateStructure()" style="font-size:13px;padding:10px 22px">⬇ Baixar pasta modelo</button>
+          <button class="btn-big" onclick="generateTemplateStructure()" style="font-size:13px;padding:10px 22px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Baixar pasta modelo</button>
         </div>
       </div>
     </div>
@@ -127,13 +127,13 @@
     <div id="ov-note" style="font-size:11px;color:var(--text3)"></div>
   </div>
   <div class="wd-bar">
-    <div class="wd-item">📅 <span id="wd-cur-year" style="color:var(--accent);font-weight:700"></span>: <strong id="wd-cur-total"></strong></div>
+    <div class="wd-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span id="wd-cur-year" style="color:var(--accent);font-weight:700"></span>: <strong id="wd-cur-total"></strong></div>
     <div class="wd-sep"></div>
     <div class="wd-item">Faturados: <strong id="wd-done"></strong></div>
     <div class="wd-sep"></div>
     <div class="wd-item">Restantes: <strong id="wd-left"></strong></div>
     <div class="wd-sep"></div>
-    <div class="wd-item">📅 <span id="wd-prev-year" style="color:var(--text2)"></span>: <strong id="wd-prev-total"></strong></div>
+    <div class="wd-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span id="wd-prev-year" style="color:var(--text2)"></span>: <strong id="wd-prev-total"></strong></div>
     <div class="wd-sep"></div>
     <div class="wd-item">Média/dia <span id="wd-prev-year2" style="color:var(--text2)"></span>: <strong id="wd-prev-avg"></strong></div>
   </div>
@@ -181,25 +181,25 @@
     <div class="sec-title"><span class="dot" style="background:var(--cyan)"></span> Inteligência Anual — Projeção &amp; Histórico</div>
   </div>
   <div id="intel-empty" style="display:none;text-align:center;padding:60px 0;color:var(--text3)">
-    <div style="font-size:48px;margin-bottom:16px">📊</div>
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;opacity:.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     <div style="font-size:15px;font-weight:700;margin-bottom:8px">Nenhuma projeção disponível</div>
     <div style="font-size:13px">Carregue os dados do ano atual para ver a projeção anual.</div>
   </div>
   <div id="intel-content">
     <div class="banner" id="intel-banner" style="margin-bottom:20px;flex-wrap:wrap;gap:20px">
       <div class="ban-item" style="text-align:center">
-        <div class="ban-lbl">📈 Projeção Anual Total</div>
+        <div class="ban-lbl">Projeção Anual Total</div>
         <div class="ban-val" id="intel-proj-total" style="font-size:28px;color:var(--accent)">—</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px" id="intel-proj-sub">—</div>
       </div>
       <div class="ban-div"></div>
-      <div class="ban-item"><div class="ban-lbl">✅ Realizado até ontem</div><div class="ban-val" id="intel-realizado" style="color:var(--success)">—</div></div>
+      <div class="ban-item"><div class="ban-lbl">Realizado até ontem</div><div class="ban-val" id="intel-realizado" style="color:var(--success)">—</div></div>
       <div class="ban-div"></div>
-      <div class="ban-item"><div class="ban-lbl">⚠ SC a Recuperar (ano)</div><div class="ban-val" id="intel-sc-total" style="color:var(--sc)">—</div></div>
+      <div class="ban-item"><div class="ban-lbl">SC a Recuperar (ano)</div><div class="ban-val" id="intel-sc-total" style="color:var(--sc)">—</div></div>
       <div class="ban-div"></div>
-      <div class="ban-item"><div class="ban-lbl">🎯 Cenário</div><div id="intel-confidence-badge" style="font-size:15px;font-weight:800;padding:6px 18px;border-radius:20px;display:inline-block">—</div></div>
+      <div class="ban-item"><div class="ban-lbl">Cenário</div><div id="intel-confidence-badge" style="font-size:15px;font-weight:800;padding:6px 18px;border-radius:20px;display:inline-block">—</div></div>
       <div class="ban-div"></div>
-      <div class="ban-item"><div class="ban-lbl">📅 Dias úteis realizados</div><div class="ban-val" id="intel-dias-real">—</div></div>
+      <div class="ban-item"><div class="ban-lbl">Dias úteis realizados</div><div class="ban-val" id="intel-dias-real">—</div></div>
     </div>
     <div id="intel-filiais-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:24px"></div>
     <!-- SC anual por filial -->
@@ -235,7 +235,7 @@
       <div id="intel-clientes-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;margin-bottom:16px"></div>
     </div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:11px;color:var(--text3);line-height:1.8">
-      <strong style="color:var(--text2)">📌 Metodologia da projeção:</strong><br>
+      <strong style="color:var(--text2)">Metodologia da projeção:</strong><br>
       • <strong>Run rate</strong>: faturamento comissionado ÷ dias úteis realizados × dias úteis restantes<br>
       • <strong>SC como potencial</strong>: AWBs SC do mês atual ainda não migrados são somados ao potencial do mês<br>
       • <strong>Sazonalidade</strong>: cada mês restante é ajustado pelo índice histórico (capado entre 0.5× e 2.0×)<br>
@@ -390,7 +390,7 @@
   <!-- SC potencial -->
   <div id="comm-sc-section" style="margin-bottom:20px;display:none">
     <div style="background:var(--sc-bg);border:1px solid var(--sc-border);border-radius:12px;padding:16px 20px">
-      <div style="font-size:11px;font-weight:700;color:var(--sc);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px">⚠ Potencial SC — Se migrar para comissão este mês</div>
+      <div style="font-size:11px;font-weight:700;color:var(--sc);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Potencial SC — Se migrar para comissão este mês</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px" id="comm-sc-potential-grid"></div>
     </div>
   </div>
@@ -408,7 +408,7 @@
             <th>Filial</th>
             <th style="text-align:right">FOB (base)</th>
             <th style="text-align:right">CIF (base)</th>
-            <th style="text-align:right;color:var(--gold)">💰 Sua Comissão</th>
+            <th style="text-align:right;color:var(--gold)">Sua Comissão</th>
             <th style="text-align:right;color:var(--sc)">SC a recuperar</th>
             <th style="text-align:right;color:var(--warning)">Comis. potencial SC</th>
           </tr>
@@ -445,7 +445,7 @@
             <th>Data</th><th>Dia</th>
             <th style="text-align:right">FOB faturado</th>
             <th style="text-align:right">CIF faturado</th>
-            <th style="text-align:right;color:var(--gold)">💰 Sua Comissão</th>
+            <th style="text-align:right;color:var(--gold)">Sua Comissão</th>
             <th style="text-align:right;color:var(--sc)">SC do dia</th>
             <th style="text-align:right;color:var(--warning)">Com. potencial SC</th>
           </tr>
@@ -457,7 +457,7 @@
   </div>
 
   <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:11px;color:var(--text3);line-height:1.9;margin-top:8px">
-    <strong style="color:var(--text2)">📌 Como a comissão é calculada:</strong><br>
+    <strong style="color:var(--text2)">Como a comissão é calculada:</strong><br>
     • <strong>FOB</strong>: quem paga o frete é o destinatário — base de cálculo = Valor Frete FOB × 1,3%<br>
     • <strong>CIF</strong>: quem paga é o remetente — base de cálculo = Valor Frete CIF × 0,2%<br>
     • <strong>SC (potencial)</strong>: AWBs sem comissão que ainda podem migrar para Carteira/Extra este mês — se migrarem, entram na sua comissão<br>

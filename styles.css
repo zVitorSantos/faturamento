@@ -155,4 +155,93 @@ tr:hover td{background:rgba(255,255,255,.06)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-@media(max-width:900px){.charts2,.charts3{grid-template-columns:1fr}.banner{flex-direction:column}.ban-div{display:none}.content{padding:12px}.wd-bar{gap:12px}.hdr{gap:10px}}
+
+/* Freshness banner */
+.fresh-banner{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px;margin-bottom:18px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.fresh-banner-hdr{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:11px}
+.fresh-banner-ttl{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:800;color:var(--text);letter-spacing:-.2px}
+.fresh-banner-ttl svg{display:block}
+.fresh-banner-sub{font-size:11px;font-weight:600;color:var(--text3);margin-left:4px;font-family:var(--mono);text-transform:none;letter-spacing:0}
+.fresh-refresh-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card2);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:all .18s}
+.fresh-refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
+.fresh-chips{display:flex;flex-wrap:wrap;gap:8px}
+.fresh-chip{display:inline-flex;align-items:center;padding:6px 12px;border-radius:20px;font-size:12px;font-family:var(--sans);font-weight:600;line-height:1}
+.fresh-chip strong{font-weight:800;font-family:var(--mono);letter-spacing:-.3px}
+
+/* Filial freshness inline (no header da filial) */
+.filial-fresh{display:inline-flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:6px}
+.filial-fresh-item{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;background:var(--card2);border:1px solid var(--border)}
+.filial-fresh-item.ok{color:var(--success);border-color:rgba(16,185,129,.3)}
+.filial-fresh-item.warn{color:var(--warning);border-color:rgba(245,158,11,.3)}
+.filial-fresh-item.late{color:var(--danger);border-color:rgba(239,68,68,.3)}
+
+/* Pagadores tab */
+.payer-day-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px}
+.payer-stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 16px;position:relative}
+.payer-stat-lbl{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.payer-stat-val{font-size:22px;font-weight:800;font-family:var(--mono);letter-spacing:-1px}
+.payer-stat-sub{font-size:11px;color:var(--text3);margin-top:3px}
+.payer-stat.new{border-left:3px solid var(--success)}
+.payer-stat.ret{border-left:3px solid var(--accent)}
+.payer-stat.lost{border-left:3px solid var(--danger)}
+
+.payer-day-row{display:grid;grid-template-columns:90px 1fr 80px 90px 110px 90px;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center;font-size:12px;cursor:pointer;transition:background .15s}
+.payer-day-row:hover{background:rgba(249,115,22,.05)}
+.payer-day-row.tot{background:var(--card2);font-weight:800;cursor:default}
+.payer-day-head{display:grid;grid-template-columns:90px 1fr 80px 90px 110px 90px;gap:12px;padding:9px 14px;border-bottom:1px solid var(--border2);background:var(--card2);font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;position:sticky;top:0;z-index:5}
+
+/* Tabs sub-period */
+.subtabs{display:inline-flex;gap:0;background:var(--card2);border-radius:9px;padding:3px;border:1px solid var(--border);margin-bottom:14px}
+.subtab{padding:7px 16px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;border-radius:7px;transition:all .15s}
+.subtab:hover{color:var(--text)}
+.subtab.active{background:var(--accent);color:#fff}
+
+/* RESPONSIVO */
+@media(max-width:1100px){.charts3{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){
+  .charts2,.charts3{grid-template-columns:1fr}
+  .banner{flex-direction:column;padding:14px 18px}
+  .ban-div{display:none}
+  .content{padding:14px}
+  .wd-bar{gap:10px;padding:9px 14px;font-size:11px}
+  .hdr{gap:10px;padding:10px 16px}
+  .hdr-title{font-size:15px}
+  .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .kpi{padding:13px 14px}
+  .kpi-val{font-size:18px}
+  .ban-val{font-size:17px}
+  .payer-day-row,.payer-day-head{grid-template-columns:80px 1fr 70px 80px;gap:8px;font-size:11px}
+  .payer-day-row>:nth-child(5),.payer-day-row>:nth-child(6),.payer-day-head>:nth-child(5),.payer-day-head>:nth-child(6){display:none}
+}
+@media(max-width:600px){
+  .hdr{flex-direction:column;align-items:stretch;padding:10px 14px;gap:8px}
+  .hdr-brand{justify-content:flex-start}
+  .period-nav{order:3;justify-content:center}
+  .period-chip{min-width:auto;flex:1;font-size:12px}
+  .open-btn{font-size:12px;padding:7px 14px}
+  .tabs{padding:0 10px;gap:0}
+  .tab{padding:10px 12px;font-size:12px}
+  .content{padding:10px 8px}
+  .wd-bar{padding:8px 10px;font-size:10.5px;gap:8px}
+  .wd-sep{display:none}
+  .kpi-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .kpi{padding:11px 12px}
+  .kpi-lbl{font-size:9.5px}
+  .kpi-val{font-size:16px}
+  .kpi-sub{font-size:10px}
+  .ban-val{font-size:15px}
+  .ban-lbl{font-size:9px}
+  .sec-title{font-size:13px}
+  .chart-card{padding:12px 13px}
+  .tbl-top{padding:10px 12px}
+  .tbl-top-ttl{font-size:12px}
+  th{padding:8px 10px;font-size:10px}
+  td{padding:8px 10px;font-size:11px}
+  .fresh-banner{padding:11px 13px}
+  .fresh-chip{font-size:11px;padding:5px 9px}
+  .modal-content{width:95vw!important;max-height:88vh!important}
+}
+@media(max-width:420px){
+  .kpi-grid{grid-template-columns:1fr}
+  .tab{padding:9px 9px;font-size:11px}
+}
