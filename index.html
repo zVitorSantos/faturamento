@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Frete</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay hidden" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-txt" id="loading-txt">Lendo pastas...</div>
+  <div class="loading-sub" id="loading-sub"></div>
+  <div class="loading-bar-wrap" id="loading-bar-wrap"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
+</div>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-icon" style="font-size:16px;font-family:var(--mono);font-weight:800;letter-spacing:-1px">FRT</div>
+    <div>
+      <div class="hdr-title">Dashboard de Frete</div>
+      <div class="hdr-sub" id="hdr-filiais-sub">Carregue uma pasta para começar</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px;flex:1;justify-content:center">
+    <span id="hdr-status" class="hdr-status"></span>
+  </div>
+  <div class="period-nav" id="period-nav" style="display:none">
+    <button class="nav-arr" id="btn-prev" onclick="navMonth(-1)">&#8592;</button>
+    <div class="period-chip" id="period-chip">—<small id="period-chip-sub"></small></div>
+    <button class="nav-arr" id="btn-next" onclick="navMonth(+1)">&#8594;</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <button class="open-btn" onclick="openFolder()"><span id="open-btn-lbl">Abrir Pasta</span></button>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs" id="main-tabs" style="display:none">
+  <div class="tab active" onclick="showPane('overview',this)">Visão Geral</div>
+  <div id="filial-tabs"></div>
+  <div class="tab" id="tab-intel" onclick="showPane('intel',this)">Análise Anual</div>
+  <div class="tab" id="tab-neg" onclick="showPane('neg',this)">Negociação
+    <span id="neg-badge-tab" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px;font-weight:700">!</span>
+  </div>
+  <div class="tab" onclick="showPane('awb',this)">Busca AWB</div>
+  <div class="tab" onclick="showPane('comissao',this)" style="font-weight:800">Comissão</div>
+</div>
+
+<div class="content">
+
+<!-- WELCOME -->
+<div class="pane active" id="pane-welcome">
+  <div class="welcome">
+    <div style="font-family:var(--mono);font-size:52px;font-weight:800;color:var(--accent);letter-spacing:-4px;line-height:1">FRT</div>
+    <div class="welcome-title">Dashboard de Frete</div>
+    <div class="welcome-desc">Selecione a pasta raiz dos seus dados para começar.<br>O sistema detecta as filiais automaticamente pelos nomes dos arquivos.<br>Use as setas ← → para navegar entre os meses após o carregamento.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px;width:100%">
+      <div class="tree-box" style="max-width:none">
+        <h4 style="margin-bottom:10px">📁 Estrutura esperada</h4>
+        <div class="tree">
+<span class="dir">/pasta-raiz</span>
+<span class="dir">├── 2026/</span>
+<span class="dir">│ └── 03/</span>
+<span class="dir">│   └── CSU/</span>
+<span class="f">│     ├── CSU-Carteira.xls</span>
+<span class="f">│     ├── CSU-Extra.xls</span>
+<span class="f" style="color:var(--sc)">│     └── CSU-SC.xls    ← Sem Comissionado</span>
+<span class="dir">└── 2025/</span>
+<span class="dir">  └── CSU/</span>
+<span class="f">    ├── CSU-Carteira.xls</span>
+<span class="f">    └── CSU-Extra.xls</span></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);line-height:1.9">
+          💡 <strong>Carteira</strong> e <strong>Extra</strong> = faturamento comissionado<br>
+          <span style="color:var(--sc)">▪</span> <strong>SC</strong> = Sem Comissionado — acompanhamento diário<br>
+          Ano atual: <span style="color:var(--cyan);font-family:var(--mono)">AAAA/MM/FILIAL/</span> · Anos ant.: <span style="color:var(--cyan);font-family:var(--mono)">AAAA/FILIAL/</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="tree-box" style="max-width:none;flex:1">
+          <h4 style="margin-bottom:10px">⚡ Como funciona o SC</h4>
+          <div style="font-size:12px;color:var(--text2);line-height:2">
+            <div>1. Coloque <span style="color:var(--sc);font-weight:700">FILIAL-SC.xls</span> na mesma pasta</div>
+            <div>2. O sistema lê diariamente AWBs não comissionados</div>
+            <div>3. Cada dia mostra <span style="color:var(--sc)">novos SCs</span> que entraram</div>
+            <div>4. AWBs que migraram para Carteira/Extra são marcados</div>
+            <div>5. SC é potencial a recuperar — entra na projeção</div>
+            <div>6. Prioridade: recuperar SC no mês atual para comissão</div>
+          </div>
+        </div>
+        <button class="btn-big" onclick="openFolder()" style="justify-content:center;font-size:14px">📂 Selecionar pasta raiz</button>
+        <div style="font-size:11px;color:var(--text3);text-align:center">Requer Chrome ou Edge</div>
+      </div>
+    </div>
+    <div style="max-width:900px;width:100%;border-top:1px solid var(--border);padding-top:18px;margin-top:4px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0" onclick="toggleTemplatePanel()">
+        <div style="font-size:13px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px"><span>🗂</span> Gerar pasta modelo</div>
+        <span style="font-size:11px;color:var(--text3)" id="template-toggle-lbl">▼ expandir</span>
+      </div>
+      <div id="template-panel" style="display:none;margin-top:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.8;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px 16px">
+          Cria a estrutura de pastas pronta. Inclui placeholder para <span style="color:var(--sc)">FILIAL-SC.xls</span>.<br>
+          Ano atual: <span style="color:var(--cyan);font-family:var(--mono)">AAAA/MM/SIGLA/</span> · Anos anteriores: <span style="color:var(--cyan);font-family:var(--mono)">AAAA/SIGLA/</span>.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+          <div class="fg"><label class="lbl">Ano anterior</label><input class="inp" id="cfg-prev-year" type="number" min="2020" max="2040" placeholder="2025"></div>
+          <div class="fg"><label class="lbl">Ano atual</label><input class="inp" id="cfg-cur-year" type="number" min="2020" max="2040" placeholder="2026"></div>
+          <div class="fg"><label class="lbl">Sigla filial</label><input class="inp" id="cfg-example-filial" placeholder="Ex: CSU" maxlength="10"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn-big" onclick="generateTemplateStructure()" style="font-size:13px;padding:10px 22px">⬇ Baixar pasta modelo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="pane" id="pane-overview">
+  <div class="sec-hdr">
+    <div class="sec-title"><span class="dot"></span> Consolidado — <span id="ov-period">—</span></div>
+    <div id="ov-note" style="font-size:11px;color:var(--text3)"></div>
+  </div>
+  <div class="wd-bar">
+    <div class="wd-item">📅 <span id="wd-cur-year" style="color:var(--accent);font-weight:700"></span>: <strong id="wd-cur-total"></strong></div>
+    <div class="wd-sep"></div>
+    <div class="wd-item">Faturados: <strong id="wd-done"></strong></div>
+    <div class="wd-sep"></div>
+    <div class="wd-item">Restantes: <strong id="wd-left"></strong></div>
+    <div class="wd-sep"></div>
+    <div class="wd-item">📅 <span id="wd-prev-year" style="color:var(--text2)"></span>: <strong id="wd-prev-total"></strong></div>
+    <div class="wd-sep"></div>
+    <div class="wd-item">Média/dia <span id="wd-prev-year2" style="color:var(--text2)"></span>: <strong id="wd-prev-avg"></strong></div>
+  </div>
+  <div class="banner">
+    <div class="ban-item"><div class="ban-lbl">Total <span class="lbl-cur"></span></div><div class="ban-val" style="color:var(--accent)" id="ov-tot-cur">—</div></div>
+    <div class="ban-div"></div>
+    <div class="ban-item"><div class="ban-lbl">Total <span class="lbl-prev"></span> (completo)</div><div class="ban-val" style="color:var(--text2)" id="ov-tot-prev">—</div></div>
+    <div class="ban-div"></div>
+    <div class="ban-item"><div class="ban-lbl">% vs <span class="lbl-prev"></span> pró-rata</div><div class="ban-val" id="ov-pct">—</div></div>
+    <div class="ban-div"></div>
+    <div class="ban-item"><div class="ban-lbl">Projeção mês completo</div><div class="ban-val" style="color:var(--success)" id="ov-proj">—</div></div>
+    <div class="ban-div"></div>
+    <div class="ban-item"><div class="ban-lbl">Gap vs meta</div><div class="ban-val" id="ov-gap">—</div></div>
+  </div>
+  <div class="kpi-grid">
+    <div id="ov-filial-kpis" style="display:contents"></div>
+    <div class="kpi b"><div class="kpi-lbl">AWBs Total</div><div class="kpi-val" id="ov-awbs">—</div><div class="kpi-sub" id="ov-awbs-sub"></div></div>
+    <div class="kpi c"><div class="kpi-lbl">Carteira Total</div><div class="kpi-val" id="ov-cart">—</div><div class="kpi-sub" id="ov-cart-sub"></div></div>
+    <div class="kpi d"><div class="kpi-lbl">Extra Total</div><div class="kpi-val" id="ov-extra">—</div><div class="kpi-sub" id="ov-extra-sub"></div></div>
+    <div class="kpi b"><div class="kpi-lbl">Média Diária</div><div class="kpi-val" id="ov-avg">—</div><div class="kpi-sub" id="ov-avg-sub"></div></div>
+  </div>
+  <div class="charts2" id="ov-daily-section">
+    <div class="chart-card">
+      <div class="chart-ttl" id="ch-ov-daily-ttl">Faturamento Diário<div class="chart-leg" id="ch-ov-daily-leg"></div></div>
+      <canvas id="ch-ov-daily" height="120"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-ttl" id="ch-ov-split-ttl">Distribuição por Filial</div>
+      <div style="height:190px"><canvas id="ch-ov-split"></canvas></div>
+    </div>
+  </div>
+  <div class="charts3">
+    <div class="chart-card">
+      <div class="chart-ttl">Projeção × Meta <span class="lbl-prev"></span></div>
+      <canvas id="ch-ov-proj" height="120"></canvas>
+    </div>
+    <div id="ov-ramos-charts" style="display:contents"></div>
+  </div>
+  <div id="ov-tipo-charts" style="display:contents"></div>
+</div>
+
+<!-- ANÁLISE ANUAL -->
+<div class="pane" id="pane-intel">
+  <div class="sec-hdr">
+    <div class="sec-title"><span class="dot" style="background:var(--cyan)"></span> Inteligência Anual — Projeção &amp; Histórico</div>
+  </div>
+  <div id="intel-empty" style="display:none;text-align:center;padding:60px 0;color:var(--text3)">
+    <div style="font-size:48px;margin-bottom:16px">📊</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px">Nenhuma projeção disponível</div>
+    <div style="font-size:13px">Carregue os dados do ano atual para ver a projeção anual.</div>
+  </div>
+  <div id="intel-content">
+    <div class="banner" id="intel-banner" style="margin-bottom:20px;flex-wrap:wrap;gap:20px">
+      <div class="ban-item" style="text-align:center">
+        <div class="ban-lbl">📈 Projeção Anual Total</div>
+        <div class="ban-val" id="intel-proj-total" style="font-size:28px;color:var(--accent)">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px" id="intel-proj-sub">—</div>
+      </div>
+      <div class="ban-div"></div>
+      <div class="ban-item"><div class="ban-lbl">✅ Realizado até ontem</div><div class="ban-val" id="intel-realizado" style="color:var(--success)">—</div></div>
+      <div class="ban-div"></div>
+      <div class="ban-item"><div class="ban-lbl">⚠ SC a Recuperar (ano)</div><div class="ban-val" id="intel-sc-total" style="color:var(--sc)">—</div></div>
+      <div class="ban-div"></div>
+      <div class="ban-item"><div class="ban-lbl">🎯 Cenário</div><div id="intel-confidence-badge" style="font-size:15px;font-weight:800;padding:6px 18px;border-radius:20px;display:inline-block">—</div></div>
+      <div class="ban-div"></div>
+      <div class="ban-item"><div class="ban-lbl">📅 Dias úteis realizados</div><div class="ban-val" id="intel-dias-real">—</div></div>
+    </div>
+    <div id="intel-filiais-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:24px"></div>
+    <!-- SC anual por filial -->
+    <div id="intel-sc-section" style="display:none;margin-bottom:24px">
+      <div class="sec-hdr" style="margin-top:8px">
+        <div class="sec-title"><span class="dot" style="background:var(--sc)"></span> Sem Comissionado — Análise Anual (mês atual)</div>
+        <span style="font-size:11px;color:var(--text3)">Somente ano atual · Anos anteriores não têm SC</span>
+      </div>
+      <div id="intel-sc-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px"></div>
+    </div>
+    <div id="intel-hist-section" style="display:none">
+      <div class="sec-hdr" style="margin-top:8px">
+        <div class="sec-title"><span class="dot" style="background:var(--warning)"></span> Top Meses Históricos</div>
+      </div>
+      <div id="intel-hist-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px"></div>
+    </div>
+    <div id="intel-season-section" style="display:none;margin-bottom:20px">
+      <div class="chart-card">
+        <div class="chart-ttl">Índice de Sazonalidade Histórico — por mês<span style="font-weight:400;color:var(--text3);font-size:10px">1.0 = média histórica</span></div>
+        <canvas id="ch-intel-season" height="110"></canvas>
+      </div>
+    </div>
+    <div id="intel-frete-section" style="margin-bottom:24px">
+      <div class="sec-hdr" style="margin-top:8px">
+        <div class="sec-title"><span class="dot" style="background:var(--cyan)"></span> Análise por Tipo de Frete — CIF · FOB · Aéreo · Rodoviário</div>
+      </div>
+      <div id="intel-frete-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px"></div>
+    </div>
+    <div id="intel-clientes-section" style="margin-bottom:24px">
+      <div class="sec-hdr" style="margin-top:8px">
+        <div class="sec-title"><span class="dot" style="background:var(--warning)"></span> Maiores Clientes — Acumulado Anual por Filial</div>
+      </div>
+      <div id="intel-clientes-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;margin-bottom:16px"></div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:11px;color:var(--text3);line-height:1.8">
+      <strong style="color:var(--text2)">📌 Metodologia da projeção:</strong><br>
+      • <strong>Run rate</strong>: faturamento comissionado ÷ dias úteis realizados × dias úteis restantes<br>
+      • <strong>SC como potencial</strong>: AWBs SC do mês atual ainda não migrados são somados ao potencial do mês<br>
+      • <strong>Sazonalidade</strong>: cada mês restante é ajustado pelo índice histórico (capado entre 0.5× e 2.0×)<br>
+      • <strong>Dado de corte</strong>: apenas dias anteriores à data atual são considerados como realizados
+    </div>
+  </div>
+</div>
+
+<!-- NEGOCIAÇÃO -->
+<div class="pane" id="pane-neg">
+  <div class="sec-hdr" id="neg-hdr" style="flex-wrap:wrap;gap:12px;display:none">
+    <div class="sec-title"><span class="dot" style="background:var(--danger)"></span> Carteira de Negociação</div>
+    <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+      <button class="btn btn-s" onclick="loadNegFile()" style="white-space:nowrap">Carregar planilha de negociação</button>
+      <span style="font-size:11px;color:var(--text3)" id="neg-file-info">Nenhuma planilha carregada</span>
+    </div>
+  </div>
+  <div id="neg-empty" style="display:flex;align-items:center;justify-content:center;min-height:62vh;padding:32px">
+    <div style="max-width:520px;width:100%;text-align:center">
+      <div style="width:72px;height:72px;border-radius:18px;background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(239,68,68,.05));border:1px solid rgba(239,68,68,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(239,68,68,.8)" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </div>
+      <div style="font-size:17px;font-weight:800;letter-spacing:-.3px;margin-bottom:8px">Carteira de Negociação</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px">Carregue uma planilha XLS/XLSX com os CNPJs em negociação.<br>O sistema cruza com os fretes carregados e alerta quando um CNPJ movimentar.</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button onclick="loadNegFile()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:linear-gradient(135deg,var(--danger),#b91c1c);border:none;border-radius:9px;color:#fff;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer">Carregar planilha</button>
+        <button onclick="downloadNegTemplate()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:var(--card2);border:1px solid var(--border2);border-radius:9px;color:var(--text);font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer">Baixar modelo</button>
+      </div>
+    </div>
+  </div>
+  <div id="neg-content" style="display:none">
+    <div class="tbl-card">
+      <div class="tbl-top" style="flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="tbl-top-ttl">CNPJs Cadastrados</div>
+          <span id="neg-alert-count-badge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">0 movimentaram</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-s" onclick="openAddNegModal()" style="white-space:nowrap">+ Adicionar CNPJ</button>
+          <input class="inp" id="neg-search" placeholder="CNPJ, nome ou tabela..." oninput="filterNeg()" style="min-width:180px">
+          <select class="inp" id="neg-filter-status" onchange="filterNeg()">
+            <option value="">Todos Status</option><option value="movimentou">Movimentou</option><option value="sem_mov">Sem movimentação</option>
+          </select>
+          <select class="inp" id="neg-filter-vendedor" onchange="filterNeg()" style="min-width:140px"><option value="">Todos Vendedores</option></select>
+          <span id="neg-list-count" style="font-size:11px;color:var(--text3);font-family:var(--mono)"></span>
+        </div>
+      </div>
+      <div class="tbl-wrap" style="overflow-x:auto">
+        <table style="width:100%;min-width:900px">
+          <thead id="body-neg-head">
+            <tr>
+              <th data-col="cnpj" data-label="CNPJ" onclick="sortNeg('cnpj')" style="min-width:118px">CNPJ ↕</th>
+              <th data-col="nome" data-label="Razão Social" onclick="sortNeg('nome')" style="min-width:160px">Razão Social ↕</th>
+              <th data-col="movimentou" data-label="Status" onclick="sortNeg('movimentou')" style="min-width:88px">Status ↓</th>
+              <th style="min-width:62px">Filial</th>
+              <th data-col="dtNeg" data-label="Dt. Neg." onclick="sortNeg('dtNeg')" style="min-width:86px">Dt. Neg. ↕</th>
+              <th style="min-width:80px">Tabela</th>
+              <th data-col="vendedor" data-label="Vendedor" onclick="sortNeg('vendedor')" style="min-width:100px">Vendedor ↕</th>
+              <th data-col="lastDate" data-label="Último" onclick="sortNeg('lastDate')" style="min-width:88px">Último ↕</th>
+              <th data-col="awbs.length" data-label="AWBs" onclick="sortNeg('awbs.length')" style="min-width:50px;text-align:center">AWBs ↕</th>
+              <th data-col="totalFrete" data-label="Frete" onclick="sortNeg('totalFrete')" style="min-width:110px">Frete ↕</th>
+              <th style="min-width:160px">Contato/Obs.</th>
+            </tr>
+          </thead>
+          <tbody id="body-neg"></tbody>
+        </table>
+      </div>
+      <div class="pag" id="pg-neg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AWB -->
+<div class="pane" id="pane-awb">
+  <div class="sec-hdr">
+    <div class="sec-title"><span class="dot"></span> Busca por AWB — todos os meses carregados</div>
+  </div>
+  <div class="tbl-card">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+        <div class="fg" style="min-width:140px"><label class="lbl">AWB</label><input class="inp" id="aq" placeholder="número..." oninput="fAWB()"></div>
+        <div class="fg" style="flex:1;min-width:140px"><label class="lbl">Remetente</label><input class="inp" id="ar" placeholder="filtrar..." oninput="fAWB()"></div>
+        <div class="fg" style="flex:1;min-width:140px"><label class="lbl">Destinatário</label><input class="inp" id="adest" placeholder="filtrar..." oninput="fAWB()"></div>
+        <div class="fg" style="min-width:100px"><label class="lbl">Cidade/UF</label><input class="inp" id="acidade" placeholder="ex: SP" oninput="fAWB()"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:8px">
+        <div class="fg"><label class="lbl">Filial</label><select class="inp" id="af" onchange="fAWB()"><option value="">Todas</option></select></div>
+        <div class="fg"><label class="lbl">Período</label><select class="inp" id="ap" onchange="fAWB()"><option value="">Todos</option></select></div>
+        <div class="fg"><label class="lbl">Tipo</label>
+          <select class="inp" id="as" onchange="fAWB()">
+            <option value="">Todos</option><option value="carteira">Carteira</option>
+            <option value="extra">Extra</option><option value="sc">SC (Sem Comiss.)</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Modal</label>
+          <select class="inp" id="amodal" onchange="fAWB()">
+            <option value="">Todos</option><option value="Aéreo">Aéreo</option><option value="Rodoviário">Rodoviário</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Data início</label><input class="inp" type="date" id="adt1" onchange="fAWB()"></div>
+        <div class="fg"><label class="lbl">Data fim</label><input class="inp" type="date" id="adt2" onchange="fAWB()"></div>
+        <div class="fg"><label class="lbl">Frete mín (R$)</label><input class="inp" type="number" id="afmin" placeholder="0" oninput="fAWB()" style="width:100px"></div>
+        <button class="btn btn-s" onclick="cAWB()">Limpar</button>
+        <button class="btn btn-s" onclick="exportAWBCSV()">Exportar CSV</button>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--mono)" id="awb-count"></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortAWB(0)">AWB ↕</th><th onclick="sortAWB(1)">Data ↕</th>
+            <th>Filial</th><th onclick="sortAWB(3)">Remetente ↕</th>
+            <th>Destinatário</th><th>Cidade/UF</th><th>Vol</th>
+            <th onclick="sortAWB(7)">Peso ↕</th><th>Merc.</th>
+            <th onclick="sortAWB(9)">Frete R$ ↕</th>
+            <th>Frete Tipo</th><th>Modal</th><th>Origem</th><th>Período</th>
+          </tr>
+        </thead>
+        <tbody id="body-awb"></tbody>
+      </table>
+    </div>
+    <div class="pag" id="pg-awb"></div>
+  </div>
+</div>
+
+<!-- COMISSÃO -->
+<div class="pane" id="pane-comissao">
+  <div class="sec-hdr">
+    <div class="sec-title"><span class="dot" style="background:var(--gold)"></span> Minha Comissão — <span id="comm-period">—</span></div>
+    <div style="font-size:11px;color:var(--text3)">Taxas: 1,3% FOB + 0,2% CIF</div>
+  </div>
+
+  <!-- Taxas fixas -->
+  <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;margin-bottom:18px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Taxas</div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+      <label style="color:var(--text2)">FOB:</label>
+      <span style="font-family:var(--mono);font-weight:700;color:var(--accent)">1,3%</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+      <label style="color:var(--text2)">CIF:</label>
+      <span style="font-family:var(--mono);font-weight:700;color:var(--accent)">0,2%</span>
+    </div>
+  </div>
+
+  <!-- Banner principal -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px" id="comm-banner-grid">
+    <!-- preenchido por JS -->
+  </div>
+
+  <!-- SC potencial -->
+  <div id="comm-sc-section" style="margin-bottom:20px;display:none">
+    <div style="background:var(--sc-bg);border:1px solid var(--sc-border);border-radius:12px;padding:16px 20px">
+      <div style="font-size:11px;font-weight:700;color:var(--sc);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px">⚠ Potencial SC — Se migrar para comissão este mês</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px" id="comm-sc-potential-grid"></div>
+    </div>
+  </div>
+
+  <!-- Tabela por filial e mês -->
+  <div class="tbl-card" style="margin-bottom:20px">
+    <div class="tbl-top">
+      <div class="tbl-top-ttl">Comissão por Filial — Acumulado Ano</div>
+      <button class="btn btn-s" onclick="exportCommCSV()" style="font-size:11px">Exportar CSV</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl-comm-filial">
+        <thead>
+          <tr>
+            <th>Filial</th>
+            <th style="text-align:right">FOB (base)</th>
+            <th style="text-align:right">CIF (base)</th>
+            <th style="text-align:right;color:var(--gold)">💰 Sua Comissão</th>
+            <th style="text-align:right;color:var(--sc)">SC a recuperar</th>
+            <th style="text-align:right;color:var(--warning)">Comis. potencial SC</th>
+          </tr>
+        </thead>
+        <tbody id="body-comm-filial"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gráfico mensal -->
+  <div class="charts2" style="margin-bottom:20px">
+    <div class="chart-card">
+      <div class="chart-ttl">Sua Comissão — Evolução Mensal
+        <div class="chart-leg"><span style="color:var(--gold)">■ comissionado</span><span style="color:var(--sc)">▪ potencial SC</span></div>
+      </div>
+      <canvas id="ch-comm-monthly" height="130"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-ttl">Comissão por Tipo de Frete</div>
+      <div style="height:200px"><canvas id="ch-comm-tipo"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tabela diária do mês atual -->
+  <div class="tbl-card">
+    <div class="tbl-top">
+      <div class="tbl-top-ttl">Comissão Diária — <span id="comm-mes-atual-lbl">Mês Atual</span></div>
+      <div style="font-size:11px;color:var(--text3)" id="comm-mes-total-lbl"></div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl-comm-daily">
+        <thead>
+          <tr>
+            <th>Data</th><th>Dia</th>
+            <th style="text-align:right">FOB faturado</th>
+            <th style="text-align:right">CIF faturado</th>
+            <th style="text-align:right;color:var(--gold)">💰 Sua Comissão</th>
+            <th style="text-align:right;color:var(--sc)">SC do dia</th>
+            <th style="text-align:right;color:var(--warning)">Com. potencial SC</th>
+          </tr>
+        </thead>
+        <tbody id="body-comm-daily"></tbody>
+        <tfoot id="foot-comm-daily"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:11px;color:var(--text3);line-height:1.9;margin-top:8px">
+    <strong style="color:var(--text2)">📌 Como a comissão é calculada:</strong><br>
+    • <strong>FOB</strong>: quem paga o frete é o destinatário — base de cálculo = Valor Frete FOB × 1,3%<br>
+    • <strong>CIF</strong>: quem paga é o remetente — base de cálculo = Valor Frete CIF × 0,2%<br>
+    • <strong>SC (potencial)</strong>: AWBs sem comissão que ainda podem migrar para Carteira/Extra este mês — se migrarem, entram na sua comissão<br>
+    • Apenas o <strong>mês atual</strong> tem SC; meses passados já estão encerrados
+  </div>
+</div>
+
+<!-- FILIAL PANES CONTAINER -->
+<div id="filial-panes-container"></div>
+
+<!-- MODAL CLIENTES NOVOS / SC DO DIA -->
+<div id="modal-novos" style="display:none;position:fixed;inset:0;background:rgba(8,14,26,.9);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(6px)">
+  <div style="background:var(--card);border:1px solid var(--border2);border-radius:18px;width:min(98vw,1280px);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+    <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:16px;letter-spacing:-.3px" id="mn-title">Pagadores Novos / Retorno</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px" id="mn-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="mn-search" class="inp" placeholder="filtrar nome ou CNPJ..." oninput="renderMN()" style="min-width:180px;font-size:12px">
+        <div style="display:flex;gap:5px">
+          <button id="mn-btn-all" class="btn btn-s" onclick="mnFilter('all')" style="font-size:11px">Todos</button>
+          <button id="mn-btn-new" class="btn btn-s" onclick="mnFilter('new')" style="font-size:11px">Nunca transportou</button>
+          <button id="mn-btn-ret" class="btn btn-s" onclick="mnFilter('ret')" style="font-size:11px">Retornou (+3m)</button>
+        </div>
+        <button onclick="closeMN()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1;flex-shrink:0">×</button>
+      </div>
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <div style="display:grid;grid-template-columns:130px 1fr 60px 120px 56px 72px 148px 108px;gap:0;padding:8px 20px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--card2)">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">CNPJ</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Pagador do Frete</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;text-align:center">AWBs</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Frete</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Filial</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Tipo</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Status</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Visto antes</div>
+      </div>
+      <div id="body-mn"></div>
+      <div id="mn-empty" class="empty" style="display:none;padding:36px">Nenhum pagador novo ou retornando neste dia.</div>
+    </div>
+    <div style="padding:10px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--text3)" id="mn-count"></span>
+      <button class="btn btn-s" onclick="exportMNCSV()" style="font-size:11px">Exportar CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SC DO DIA -->
+<div id="modal-sc-day" style="display:none;position:fixed;inset:0;background:rgba(8,14,26,.9);z-index:610;align-items:center;justify-content:center;backdrop-filter:blur(6px)">
+  <div style="background:var(--card);border:1px solid var(--sc-border);border-radius:18px;width:min(98vw,1100px);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.8)">
+    <div style="padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div>
+        <div style="font-weight:800;font-size:15px;color:var(--sc)" id="sc-day-title">SC — Novos do Dia</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:3px" id="sc-day-sub"></div>
+      </div>
+      <button onclick="document.getElementById('modal-sc-day').style.display='none';document.body.style.overflow=''" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1">×</button>
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <table style="width:100%">
+        <thead>
+          <tr>
+            <th>AWB</th><th>Data</th><th>Remetente</th><th>Destinatário</th>
+            <th>Cidade/UF</th><th>Tipo Frete</th><th>Modal</th>
+            <th style="text-align:right">Frete R$</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="body-sc-day"></tbody>
+      </table>
+    </div>
+    <div style="padding:10px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;color:var(--text3)" id="sc-day-count"></span>
+      <button class="btn btn-s" onclick="exportSCDayCSV()" style="font-size:11px">Exportar CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Adicionar CNPJ -->
+<div id="modal-add-neg" style="display:none;position:fixed;inset:0;background:rgba(8,14,26,.9);z-index:700;align-items:center;justify-content:center;backdrop-filter:blur(6px)">
+  <div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;width:min(98vw,480px);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.7)">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800;font-size:15px">Adicionar CNPJ à Negociação</div>
+      <button onclick="closeAddNegModal()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1;padding:4px 8px">×</button>
+    </div>
+    <div style="padding:20px;overflow-y:auto">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">CNPJ *</label>
+          <input class="inp" id="add-neg-cnpj" placeholder="00.000.000/0000-00" style="width:100%">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Razão Social</label>
+          <input class="inp" id="add-neg-nome" placeholder="Nome da empresa" style="width:100%">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Data Negociação</label>
+          <input class="inp" id="add-neg-dt" type="date" style="width:100%">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Tabela</label>
+          <input class="inp" id="add-neg-tabela" placeholder="Tabela A, B, etc." style="width:100%">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Vendedor</label>
+          <input class="inp" id="add-neg-vendedor" placeholder="Nome do vendedor" style="width:100%">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Contato</label>
+          <input class="inp" id="add-neg-contato" placeholder="Telefone ou email" style="width:100%">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Observação</label>
+          <textarea class="inp" id="add-neg-obs" placeholder="Observações adicionais" style="width:100%;min-height:60px;resize:vertical"></textarea>
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeAddNegModal()" style="padding:8px 20px;background:var(--card2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-weight:700;font-size:13px;cursor:pointer">Cancelar</button>
+      <button onclick="addNegEntry()" style="padding:8px 20px;background:var(--danger);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:13px;cursor:pointer">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .content -->
+
+<div class="toast" id="toastEl"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
