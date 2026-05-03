@@ -274,7 +274,7 @@
           <span id="neg-alert-count-badge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:700">0 movimentaram</span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button class="btn btn-s" onclick="openAddNegModal()" style="white-space:nowrap">+ Adicionar CNPJ</button>
+          <button class="btn btn-s" onclick="openAddNegModal2()" style="white-space:nowrap">+ Adicionar CNPJ</button>
           <input class="inp" id="neg-search" placeholder="CNPJ, nome ou tabela..." oninput="filterNeg()" style="min-width:180px">
           <select class="inp" id="neg-filter-status" onchange="filterNeg()">
             <option value="">Todos Status</option><option value="movimentou">Movimentou</option><option value="sem_mov">Sem movimentação</option>
@@ -298,6 +298,7 @@
               <th data-col="awbs.length" data-label="AWBs" onclick="sortNeg('awbs.length')" style="min-width:50px;text-align:center">AWBs ↕</th>
               <th data-col="totalFrete" data-label="Frete" onclick="sortNeg('totalFrete')" style="min-width:110px">Frete ↕</th>
               <th style="min-width:160px">Contato/Obs.</th>
+              <th style="min-width:72px;text-align:center">Ações</th>
             </tr>
           </thead>
           <tbody id="body-neg"></tbody>

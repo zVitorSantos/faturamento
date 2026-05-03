@@ -159,14 +159,12 @@ function buildDynamicPanes(){
                 <th onclick="srt('tbl-${pfx}',0)">Data</th><th>Dia</th>
                 <th onclick="srt('tbl-${pfx}',2)">Carteira</th>
                 <th onclick="srt('tbl-${pfx}',3)">Extra</th>
-                <th onclick="srt('tbl-${pfx}',4)" style="color:var(--sc)">SC</th>
-                <th onclick="srt('tbl-${pfx}',5)">Total Comiss.</th>
-                <th onclick="srt('tbl-${pfx}',6)">AWBs</th>
-                <th onclick="srt('tbl-${pfx}',7)">Volumes</th>
-                <th onclick="srt('tbl-${pfx}',8)">Ant. equiv.</th>
-                <th onclick="srt('tbl-${pfx}',9)">Δ%</th>
-                <th title="Clientes novos/retorno">Clientes</th>
-                <th title="SC do dia" style="color:var(--sc)">SC↕</th>
+                <th onclick="srt('tbl-${pfx}',4)">Total Comiss.</th>
+                <th onclick="srt('tbl-${pfx}',5)">AWBs</th>
+                <th onclick="srt('tbl-${pfx}',6)">Volumes</th>
+                <th onclick="srt('tbl-${pfx}',7)">Ant. equiv.</th>
+                <th onclick="srt('tbl-${pfx}',8)">Δ%</th>
+                <th style="text-align:center">Clientes</th>
               </tr></thead>
               <tbody id="body-${pfx}"></tbody>
             </table>
@@ -302,6 +300,7 @@ function renderFreshnessBanner(){
     banner=document.createElement('div');
     banner.id='freshness-banner';
     banner.className='fresh-banner';
+    banner.style.marginBottom='14px';
     const content=document.querySelector('.content');
     if(content)content.insertBefore(banner,content.firstChild);
   }
@@ -309,19 +308,26 @@ function renderFreshnessBanner(){
   const list=STATE.filiais.map(f=>freshnessChipHTML(f,STATE.freshness.byFilial[f]||{status:'late',worstGap:99})).join('');
   const allOk=STATE.filiais.every(f=>STATE.freshness.byFilial[f]?.status==='ok');
   const headerColor=allOk?'var(--success)':'var(--warning)';
+  const isOpen=banner.dataset.open==='1';
   banner.innerHTML=`
-    <div class="fresh-banner-hdr">
+    <div class="fresh-banner-hdr" onclick="toggleFreshness()" style="cursor:pointer">
       <div class="fresh-banner-ttl">
         <span style="color:${headerColor}">${allOk?ICONS.check:ICONS.warn}</span>
         <span>Status dos arquivos</span>
-        <span class="fresh-banner-sub">esperado: ${fd(expected)} (último dia útil)</span>
+        <span class="fresh-banner-sub">${allOk?'Todos atualizados':'Atenção: verifique arquivos'} · ${fd(expected)}</span>
       </div>
-      <button class="fresh-refresh-btn" onclick="checkAndReloadIfChanged(false)" title="Recarregar">
-        ${ICONS.refresh}<span>Atualizar</span>
-      </button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="fresh-refresh-btn" onclick="event.stopPropagation();checkAndReloadIfChanged(false)" title="Recarregar">${ICONS.refresh}<span>Atualizar</span></button>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${isOpen?'▲':'▼'}</span>
+      </div>
     </div>
-    <div class="fresh-chips">${list}</div>
+    <div id="fresh-chips-body" style="display:${isOpen?'flex':'none'};flex-wrap:wrap;gap:8px;margin-top:10px">${list}</div>
   `;
+}
+function toggleFreshness(){
+  const banner=$('freshness-banner');if(!banner)return;
+  banner.dataset.open=banner.dataset.open==='1'?'0':'1';
+  renderFreshnessBanner();
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -954,19 +960,18 @@ function renderFilial(filial){
       const scDia=r?.sc||0;const scDiaAwbs=r?.scAwbs||0;
       const diff=v25>0?((tot-v25)/v25*100):null;
       const isScDay=scDia>0;
-      const tr=document.createElement('tr');tr.className='row-clickable';tr.title='Ver clientes novos/retorno';tr.onclick=()=>openNovos(dt,filial);
+      const dayAWBsCount=(()=>{let n=0;Object.values(STATE.cache).forEach(d=>{n+=d.cur.filter(a=>a.data===dt&&a.filial===filial).length;});return n;})();
+      const tr=document.createElement('tr');
       tr.innerHTML=`
         <td class="mono"><strong>${fd(dt)}</strong></td>
         <td style="color:var(--text2)">${dn(dt)}</td>
         <td>${r?R$(r.carteira):'—'}</td>
         <td>${r?R$(r.extra):'—'}</td>
-        <td class="col-sc${false?' col-sc-new':''}" style="cursor:${isScDay?'pointer':'default'};font-weight:${isScDay?'700':'400'};color:${isScDay?'var(--sc)':'var(--text3)'}" onclick="${isScDay?`event.stopPropagation();openSCDay('${dt}','${filial}')`:'void(0)'}" title="${isScDay?`SC do dia: ${scDiaAwbs} AWBs (${0} novos)`:'Sem SC neste dia'}">${scDia>0?R$(scDia)+'<br><span style="font-size:10px;color:var(--text3)">'+scDiaAwbs+' AWBs</span>':'—'}</td>
         <td class="mono" style="font-weight:700;color:${tot>0?color:'var(--text3)'}">${tot>0?R$(tot):'—'}</td>
         <td>${r?.awbs||'—'}</td><td>${r?.volumes||'—'}</td>
         <td style="color:var(--text3)">${v25>0?R$(v25):'—'}</td>
         <td style="font-weight:700;color:${diff===null?'var(--text3)':diff>=0?'var(--success)':'var(--danger)'}">${diff!==null?pct(diff):'—'}</td>
-        <td style="color:var(--text3);font-size:11px;text-align:center">+</td>
-        <td style="text-align:center">${false?`<span onclick="event.stopPropagation();openSCDay('${dt}','${filial}')" style="cursor:pointer;background:var(--sc-bg);color:var(--sc);padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700">${0}↑</span>`:'—'}</td>`;
+        <td style="text-align:center;padding:6px 10px">${dayAWBsCount>0?`<button onclick="openNovos('${dt}','${filial}')" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.3);border-radius:6px;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:all .15s" onmouseover="this.style.background='rgba(249,115,22,.22)'" onmouseout="this.style.background='rgba(249,115,22,.12)'">${ICONS.users} Ver</button>`:'—'}</td>`;
       tbody.appendChild(tr);
     });
   }
@@ -1047,8 +1052,7 @@ function renderIntel(){
     });
   }
 
-  // Seção SC anual
-  renderIntelSCSection();
+  // SC anual removido da exibição (mantido no cálculo de projeção)
 
   const histSection=$('intel-hist-section');const histGrid=$('intel-hist-grid');const hasHistory=Object.keys(STATE.history||{}).length>0;
   if(histSection)histSection.style.display=hasHistory?'block':'none';
@@ -1261,6 +1265,57 @@ async function loadNegFile(){if(!window.showOpenFilePicker){toast('Use Chrome ou
 function computeNegMatches(){const allAWBs=[];Object.values(STATE.cache).forEach(d=>allAWBs.push(...d.cur,...d.prev));const cnpjMap={};allAWBs.forEach(a=>{if(!a.cnpj)return;const c=cleanCNPJ(a.cnpj);if(!c)return;if(!cnpjMap[c])cnpjMap[c]=[];cnpjMap[c].push(a);});NEG_MATCHES=NEG_LIST.map(entry=>{const awbs=cnpjMap[entry.cnpj]||[];const totalFrete=awbs.reduce((s,a)=>s+a.valor_frete,0);const sorted=[...awbs].sort((a,b)=>a.data>b.data?-1:1);const lastAWB=sorted[0]||null;return{...entry,awbs,totalFrete,lastDate:lastAWB?.data||null,movimentou:awbs.length>0};});}
 function updateNegBadge(){const count=NEG_MATCHES.filter(m=>m.movimentou).length;const badge=$('neg-badge-tab');if(count>0){badge.style.display='inline';badge.textContent=count;}else badge.style.display='none';const ib=$('neg-alert-count-badge');if(ib){if(count>0){ib.style.display='inline';ib.textContent=count+' movimentaram';}else ib.style.display='none';}}
 function renderNeg(){if(!NEG_LIST.length){$('neg-empty').style.display='flex';$('neg-content').style.display='none';const hdr=$('neg-hdr');if(hdr)hdr.style.display='none';return;}$('neg-empty').style.display='none';$('neg-content').style.display='block';const hdr=$('neg-hdr');if(hdr)hdr.style.display='flex';filterNeg();}
+
+// CRUD — Editar entrada na negociação
+function openEditNegModal(idx){
+  const entry=NEG_LIST[idx];if(!entry)return;
+  $('add-neg-cnpj').value=entry.cnpj||'';
+  $('add-neg-nome').value=entry.nome||'';
+  // converter dd/mm/yyyy -> yyyy-mm-dd para input[type=date]
+  if(entry.dtNeg&&/\d{2}\/\d{2}\/\d{4}/.test(entry.dtNeg)){const[d,m,y]=entry.dtNeg.split('/');$('add-neg-dt').value=`${y}-${m}-${d}`;}
+  else $('add-neg-dt').value='';
+  $('add-neg-tabela').value=entry.tabela||'';
+  $('add-neg-vendedor').value=entry.vendedor||'';
+  $('add-neg-contato').value=entry.contato||'';
+  $('add-neg-obs').value=entry.obs||'';
+  // Troca o botão para salvar edição
+  const btn=$('modal-add-neg').querySelector('button[onclick="addNegEntry()"]');
+  if(btn){btn.textContent='Salvar alterações';btn.setAttribute('onclick',`saveEditNeg(${idx})`);}
+  const title=$('modal-add-neg').querySelector('div[style*="font-weight:800"]');
+  if(title)title.textContent='Editar CNPJ de Negociação';
+  $('modal-add-neg').style.display='flex';document.body.style.overflow='hidden';
+}
+function saveEditNeg(idx){
+  const entry=NEG_LIST[idx];if(!entry)return;
+  const cnpjInput=$('add-neg-cnpj').value.trim();
+  if(!cnpjInput){toast('CNPJ é obrigatório','err');return;}
+  const cnpj=cleanCNPJ(cnpjInput);
+  if(cnpj.length<8){toast('CNPJ inválido','err');return;}
+  NEG_LIST[idx]={cnpj:cnpj.replace(/^0+/,'')||cnpj,nome:$('add-neg-nome').value.trim(),dtNeg:$('add-neg-dt').value?new Date($('add-neg-dt').value+'T12:00:00').toLocaleDateString('pt-BR'):'',tabela:$('add-neg-tabela').value.trim(),vendedor:$('add-neg-vendedor').value.trim(),contato:$('add-neg-contato').value.trim(),obs:$('add-neg-obs').value.trim()};
+  saveNegData();computeNegMatches();renderNeg();updateNegBadge();
+  // Restaura o modal para modo adição
+  _resetNegModal();
+  closeAddNegModal();
+  toast('CNPJ atualizado!','ok');
+}
+function deleteNegEntry(idx){
+  if(!confirm('Remover este CNPJ da negociação?'))return;
+  NEG_LIST.splice(idx,1);
+  saveNegData();computeNegMatches();renderNeg();updateNegBadge();
+  if($('neg-file-info'))$('neg-file-info').textContent=`${NEG_LIST.length} CNPJs carregados`;
+  toast('CNPJ removido.','ok');
+}
+function _resetNegModal(){
+  const btn=$('modal-add-neg').querySelector('button[onclick*="saveEditNeg"]');
+  if(btn){btn.textContent='Adicionar';btn.setAttribute('onclick','addNegEntry()');}
+  const title=$('modal-add-neg').querySelector('div[style*="font-weight:800"]');
+  if(title)title.textContent='Adicionar CNPJ à Negociação';
+}
+function openAddNegModal2(){
+  _resetNegModal();
+  ['add-neg-cnpj','add-neg-nome','add-neg-dt','add-neg-tabela','add-neg-vendedor','add-neg-contato','add-neg-obs'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  $('modal-add-neg').style.display='flex';document.body.style.overflow='hidden';
+}
 let _negSortCol='movimentou',_negSortAsc=false,_negPg=1;const NEG_PP=60;
 function sortNeg(col){if(_negSortCol===col)_negSortAsc=!_negSortAsc;else{_negSortCol=col;_negSortAsc=true;}document.querySelectorAll('#body-neg-head th').forEach(th=>{const c=th.dataset.col;th.textContent=th.dataset.label+(c===col?(_negSortAsc?' ↑':' ↓'):' ↕');});_negPg=1;filterNeg();}
 function filterNeg(){const q=($('neg-search')?.value||'').trim().toLowerCase();const st=$('neg-filter-status')?.value||'';const vend=$('neg-filter-vendedor')?.value||'';NEG_FILTERED=NEG_MATCHES.filter(m=>{const cnpjD=(m.cnpj||'').replace(/^0+/,'');if(q&&!cnpjD.includes(q)&&!(m.cnpj||'').includes(q)&&!(m.nome||'').toLowerCase().includes(q)&&!(m.tabela||'').toLowerCase().includes(q))return false;if(st==='movimentou'&&!m.movimentou)return false;if(st==='sem_mov'&&m.movimentou)return false;if(vend&&m.vendedor!==vend)return false;return true;});
@@ -1268,7 +1323,46 @@ NEG_FILTERED.sort((a,b)=>{let av=a[_negSortCol],bv=b[_negSortCol];if(_negSortCol
 const negCount=$('neg-list-count');if(negCount)negCount.textContent=`${NEG_FILTERED.length} de ${NEG_MATCHES.length}`;
 const vendorSel=$('neg-filter-vendedor');if(vendorSel){const cur=vendorSel.value;const vendors=[...new Set(NEG_MATCHES.map(m=>m.vendedor).filter(Boolean))].sort();vendorSel.innerHTML='<option value="">Todos Vendedores</option>'+vendors.map(v=>`<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');}
 renderNegPg();}
-function renderNegPg(){const tbody=$('body-neg');if(!tbody)return;tbody.innerHTML='';const start=(_negPg-1)*NEG_PP;NEG_FILTERED.slice(start,start+NEG_PP).forEach(m=>{const filiais=[...new Set(m.awbs.map(a=>a.filial))].join(', ')||'—';const cnpjDigits=(m.cnpj||'').replace(/^0+/,'')||m.cnpj;const hasAwbs=m.awbs.length>0;const tr=document.createElement('tr');tr.style.cursor=hasAwbs?'pointer':'default';if(hasAwbs){tr.classList.add('row-clickable');tr.onclick=()=>openNegAwbs(m);}const lastFmt=m.lastDate?new Date(m.lastDate+'T12:00:00').toLocaleDateString('pt-BR'):'—';const nomeDisplay=m.nome?`<span title="${m.nome.replace(/"/g,'&quot;')}" style="display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nome}</span>`:'<span style="color:var(--text3)">—</span>';const tabelaDisplay=m.tabela?`<span title="${m.tabela.replace(/"/g,'&quot;')}" style="display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.tabela}</span>`:'—';const contatoRaw=[m.contato,m.obs].filter(Boolean).join(' · ')||'—';const contatoDisplay=`<span title="${contatoRaw.replace(/"/g,'&quot;')}" style="display:block;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${contatoRaw}</span>`;tr.innerHTML=`<td class="mono" style="font-size:11px;color:var(--cyan);white-space:nowrap">${cnpjDigits}</td><td style="font-weight:${m.nome?'600':'400'};padding-right:8px">${nomeDisplay}</td><td style="white-space:nowrap">${m.movimentou?'<span style="background:rgba(239,68,68,.13);color:var(--danger);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🔔 Mov.</span>':'<span style="color:var(--text3);font-size:11px">Aguard.</span>'}</td><td style="font-size:11px;color:var(--text2);white-space:nowrap">${filiais}</td><td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.dtNeg||'—'}</td><td style="font-size:11px;color:var(--text2)">${tabelaDisplay}</td><td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.vendedor||'—'}</td><td style="white-space:nowrap;color:${m.lastDate?'var(--accent)':'var(--text3)'}">${lastFmt}</td><td class="mono" style="text-align:center">${m.awbs.length||'—'}</td><td class="mono" style="color:${m.totalFrete>0?'var(--success)':'var(--text3)'};white-space:nowrap">${m.totalFrete>0?R$(m.totalFrete):'—'}</td><td style="color:var(--text2);font-size:11px">${contatoDisplay}</td>`;tbody.appendChild(tr);});renderPag('pg-neg',NEG_FILTERED.length,_negPg,NEG_PP,p=>{_negPg=p;renderNegPg();});}
+function renderNegPg(){
+  const tbody=$('body-neg');if(!tbody)return;tbody.innerHTML='';
+  const start=(_negPg-1)*NEG_PP;
+  NEG_FILTERED.slice(start,start+NEG_PP).forEach(m=>{
+    // Encontrar idx real no NEG_LIST
+    const realIdx=NEG_LIST.findIndex(e=>e.cnpj===m.cnpj&&e.nome===m.nome&&e.dtNeg===m.dtNeg);
+    const filiais=[...new Set(m.awbs.map(a=>a.filial))].join(', ')||'—';
+    const cnpjDigits=(m.cnpj||'').replace(/^0+/,'')||m.cnpj;
+    const hasAwbs=m.awbs.length>0;
+    const tr=document.createElement('tr');
+    if(hasAwbs){tr.classList.add('row-clickable');tr.onclick=(e)=>{if(e.target.closest('button'))return;openNegAwbs(m);};}
+    const lastFmt=m.lastDate?new Date(m.lastDate+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+    const nomeDisplay=m.nome?`<span title="${m.nome.replace(/"/g,'&quot;')}" style="display:block;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nome}</span>`:'<span style="color:var(--text3)">—</span>';
+    const tabelaDisplay=m.tabela?`<span title="${m.tabela.replace(/"/g,'&quot;')}" style="display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.tabela}</span>`:'—';
+    const contatoRaw=[m.contato,m.obs].filter(Boolean).join(' · ')||'—';
+    const contatoDisplay=`<span title="${contatoRaw.replace(/"/g,'&quot;')}" style="display:block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${contatoRaw}</span>`;
+    const statusHtml=m.movimentou
+      ?'<span style="background:rgba(239,68,68,.13);color:var(--danger);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🔔 Mov.</span>'
+      :'<span style="color:var(--text3);font-size:11px">Aguard.</span>';
+    const actionsHtml=realIdx>=0?`
+      <button onclick="event.stopPropagation();openEditNegModal(${realIdx})" title="Editar" style="background:none;border:none;padding:4px 6px;cursor:pointer;color:var(--text2);border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${ICONS.search.replace('search','pencil')||'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'}</button>
+      <button onclick="event.stopPropagation();deleteNegEntry(${realIdx})" title="Remover" style="background:none;border:none;padding:4px 6px;cursor:pointer;color:var(--text2);border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text2)'">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>`:'';
+    tr.innerHTML=`<td class="mono" style="font-size:11px;color:var(--cyan);white-space:nowrap">${cnpjDigits}</td>
+      <td style="font-weight:${m.nome?'600':'400'};padding-right:8px">${nomeDisplay}</td>
+      <td style="white-space:nowrap">${statusHtml}</td>
+      <td style="font-size:11px;color:var(--text2);white-space:nowrap">${filiais}</td>
+      <td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.dtNeg||'—'}</td>
+      <td style="font-size:11px;color:var(--text2)">${tabelaDisplay}</td>
+      <td style="font-size:11px;color:var(--text2);white-space:nowrap">${m.vendedor||'—'}</td>
+      <td style="white-space:nowrap;color:${m.lastDate?'var(--accent)':'var(--text3)'}">${lastFmt}</td>
+      <td class="mono" style="text-align:center">${m.awbs.length||'—'}</td>
+      <td class="mono" style="color:${m.totalFrete>0?'var(--success)':'var(--text3)'};white-space:nowrap">${m.totalFrete>0?R$(m.totalFrete):'—'}</td>
+      <td style="color:var(--text2);font-size:11px">${contatoDisplay}</td>
+      <td style="white-space:nowrap;text-align:center">${actionsHtml}</td>`;
+    tbody.appendChild(tr);
+  });
+  renderPag('pg-neg',NEG_FILTERED.length,_negPg,NEG_PP,p=>{_negPg=p;renderNegPg();});
+}
 function openNegAwbs(m){const existing=$('modal-neg-awbs');if(existing)existing.remove();const cnpjDigits=(m.cnpj||'').replace(/^0+/,'')||m.cnpj;const sorted=[...m.awbs].sort((a,b)=>b.data.localeCompare(a.data));const rows=sorted.map(a=>`<tr><td class="mono" style="font-size:11px">${a.awb}</td><td>${new Date(a.data+'T12:00:00').toLocaleDateString('pt-BR')}</td><td><span style="background:rgba(249,115,22,.12);color:var(--accent);padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono)">${a.filial}</span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${a.remetente}</td><td><span class="tag ${a.source}">${a.source}</span></td><td class="mono" style="color:var(--accent);font-weight:700">${R$(a.valor_frete)}</td><td style="color:var(--text3);font-size:11px">${a.cidade}/${a.uf}</td></tr>`).join('');const modal=document.createElement('div');modal.id='modal-neg-awbs';modal.style.cssText='position:fixed;inset:0;background:rgba(8,14,26,.88);z-index:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';modal.innerHTML=`<div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;width:min(98vw,860px);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.7)"><div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-weight:800;font-size:15px">${m.nome||cnpjDigits}</div><div style="font-size:11px;color:var(--text3);margin-top:3px">CNPJ ${cnpjDigits} · ${sorted.length} embarque(s) · Total ${R$(m.totalFrete)}</div></div><button onclick="document.getElementById('modal-neg-awbs').remove();document.body.style.overflow=''" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1;padding:4px 8px">×</button></div><div style="overflow-y:auto;flex:1"><table style="width:100%"><thead><tr><th>AWB</th><th>Data</th><th>Filial</th><th>Remetente</th><th>Tipo</th><th>Frete</th><th>Destino</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;modal.addEventListener('click',e=>{if(e.target===modal){modal.remove();document.body.style.overflow='';}});document.body.appendChild(modal);document.body.style.overflow='hidden';}
 
 // ══════════════════════════════════════════════════════════
