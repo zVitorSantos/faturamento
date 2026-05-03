@@ -603,7 +603,7 @@ async function scanAllPeriods(opts={}){
 
   const apEl=$('ap');if(apEl){apEl.innerHTML='<option value="">Todos</option>';sortedKeys.forEach(p=>{const{year,month}=decodePeriod(p);const opt=document.createElement('option');opt.value=p;opt.textContent=`${MONTHS[month].substring(0,3)} ${year}`;apEl.appendChild(opt);});}
 
-  $('pane-welcome').classList.remove('active');$('main-tabs').style.display='flex';$('period-nav').style.display='flex';$('hdr-status').style.display='inline';$('open-btn-lbl').textContent='Recarregar';
+  $('pane-welcome').classList.remove('active');$('main-tabs').style.display='flex';$('period-nav').classList.add('shown');$('open-btn-lbl').textContent='Recarregar';
 
   // Paraleliza leitura de períodos do ano corrente
   const total=STATE.periods.length;
@@ -708,7 +708,9 @@ async function loadAndRender(){
   const data=STATE.cache[periodKey];const wdCur=workingDays(curYear,month);const wdPrev=workingDays(prevYear,month);
   const _allDts=data.cur.map(a=>a.data).sort();const _dtRange=_allDts.length?` · ${_allDts[0]} → ${_allDts[_allDts.length-1]}`:'';
   const scCount=data.sc?data.sc.length:0;
-  $('hdr-status').textContent=`${data.cur.length} cur + ${data.prev.length} prev + ${scCount} SC${_dtRange}`;
+  const statusTxt=`${data.cur.length} cur + ${data.prev.length} prev + ${scCount} SC${_dtRange}`;
+  const statusEl=$('hdr-status');if(statusEl)statusEl.textContent=statusTxt;
+  const footer=$('status-footer');if(footer)footer.style.display='flex';
   $$('.lbl-cur').forEach(el=>el.textContent=curYear);$$('.lbl-prev').forEach(el=>el.textContent=prevYear);
   renderCurrentPane(data,wdCur,wdPrev,curYear,prevYear,month);
 }
