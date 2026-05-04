@@ -1264,7 +1264,31 @@ function addNegEntry(){
 function parseNegDate(v){if(!v&&v!==0)return'';if(typeof v==='number'&&v>40000&&v<60000){const d=new Date(Math.round((v-25569)*86400*1000));if(!isNaN(d))return d.toLocaleDateString('pt-BR');}if(v instanceof Date)return v.toLocaleDateString('pt-BR');const s=String(v).trim();if(!s)return'';if(/^\d{4}-\d{2}-\d{2}/.test(s))return new Date(s+'T12:00:00').toLocaleDateString('pt-BR');if(/^\d{2}\/\d{2}\/\d{4}/.test(s))return s;return s;}
 function downloadNegTemplate(){const bom='\uFEFF';const csv=bom+'CNPJ,Razão Social,Data Negociação,Tabela,Vendedor,Contato,Observação\n12345678000195,Empresa Exemplo Ltda,2026-01-15,Tabela A,João Silva,(11)99999-9999,Cliente prioritário\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='planilha_negociacao_modelo.csv';a.click();toast('Planilha modelo baixada!','ok');}
 async function loadNegFile(){if(!window.showOpenFilePicker){toast('Use Chrome ou Edge.','err');return;}try{const[fh]=await window.showOpenFilePicker({types:[{description:'Planilha',accept:{'application/vnd.ms-excel':['.xls','.xlsx']}}]});const buf=await(await fh.getFile()).arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});if(rows.length<2){toast('Planilha vazia.','err');return;}const hdr=rows[0].map(h=>String(h).trim().toLowerCase());const ci=(...ns)=>{for(const n of ns){const i=hdr.findIndex(h=>h.includes(n.toLowerCase()));if(i>=0)return i;}return -1;};const iCNPJ=ci('cnpj'),iNome=ci('razão','razao','nome','social'),iDtNeg=ci('data neg','dt. neg','negociação','negociacao'),iTabela=ci('tabela','tab'),iVend=ci('vendedor','vend'),iCont=ci('contato','telefone','email'),iObs=ci('obs','observ','nota');if(iCNPJ<0){toast('Coluna CNPJ não encontrada.','err');return;}NEG_LIST=[];for(let i=1;i<rows.length;i++){const r=rows[i];let cnpj=cleanCNPJ(r[iCNPJ]);if(!cnpj||cnpj.length<8)continue;cnpj=cnpj.replace(/^0+/,'')||cnpj;NEG_LIST.push({cnpj,nome:iNome>=0?String(r[iNome]||'').trim():'',dtNeg:iDtNeg>=0?parseNegDate(r[iDtNeg]):'',tabela:iTabela>=0?String(r[iTabela]||'').trim():'',vendedor:iVend>=0?String(r[iVend]||'').trim():'',contato:iCont>=0?String(r[iCont]||'').trim():'',obs:iObs>=0?String(r[iObs]||'').trim():''});}$('neg-file-info').textContent=`${NEG_LIST.length} CNPJs carregados de "${fh.name}"`;toast(`✅ ${NEG_LIST.length} CNPJs de negociação carregados.`,'ok');_negPg=1;computeNegMatches();renderNeg();updateNegBadge();saveNegData();}catch(e){if(e.name!=='AbortError')toast('Erro ao ler planilha: '+e.message,'err');}}
-function computeNegMatches(){const allAWBs=[];Object.values(STATE.cache).forEach(d=>allAWBs.push(...d.cur,...d.prev));const cnpjMap={};allAWBs.forEach(a=>{if(!a.cnpj)return;const c=cleanCNPJ(a.cnpj);if(!c)return;if(!cnpjMap[c])cnpjMap[c]=[];cnpjMap[c].push(a);});NEG_MATCHES=NEG_LIST.map(entry=>{const awbs=cnpjMap[entry.cnpj]||[];const totalFrete=awbs.reduce((s,a)=>s+a.valor_frete,0);const sorted=[...awbs].sort((a,b)=>a.data>b.data?-1:1);const lastAWB=sorted[0]||null;return{...entry,awbs,totalFrete,lastDate:lastAWB?.data||null,movimentou:awbs.length>0};});}
+function computeNegMatches(){
+  const allAWBs=[];
+  Object.values(STATE.cache).forEach(d=>allAWBs.push(...d.cur,...d.prev));
+
+  // Monta mapa CNPJ → AWBs onde esse CNPJ é o PAGADOR do frete
+  // CIF → remetente paga  (cnpj_remetente)
+  // FOB → destinatário paga (cnpj_destinatario)
+  const cnpjMap={};
+  allAWBs.forEach(a=>{
+    const payer=freightPayerInfo(a);
+    if(!payer.cnpj)return;
+    const c=cleanCNPJ(payer.cnpj).replace(/^0+/,'')||cleanCNPJ(payer.cnpj);
+    if(!c||c.length<8)return;
+    if(!cnpjMap[c])cnpjMap[c]=[];
+    cnpjMap[c].push(a);
+  });
+
+  NEG_MATCHES=NEG_LIST.map(entry=>{
+    const awbs=cnpjMap[entry.cnpj]||[];
+    const totalFrete=awbs.reduce((s,a)=>s+a.valor_frete,0);
+    const sorted=[...awbs].sort((a,b)=>a.data>b.data?-1:1);
+    const lastAWB=sorted[0]||null;
+    return{...entry,awbs,totalFrete,lastDate:lastAWB?.data||null,movimentou:awbs.length>0};
+  });
+}
 function updateNegBadge(){const count=NEG_MATCHES.filter(m=>m.movimentou).length;const badge=$('neg-badge-tab');if(count>0){badge.style.display='inline';badge.textContent=count;}else badge.style.display='none';const ib=$('neg-alert-count-badge');if(ib){if(count>0){ib.style.display='inline';ib.textContent=count+' movimentaram';}else ib.style.display='none';}}
 function renderNeg(){if(!NEG_LIST.length){$('neg-empty').style.display='flex';$('neg-content').style.display='none';const hdr=$('neg-hdr');if(hdr)hdr.style.display='none';return;}$('neg-empty').style.display='none';$('neg-content').style.display='block';const hdr=$('neg-hdr');if(hdr)hdr.style.display='flex';filterNeg();}
 
